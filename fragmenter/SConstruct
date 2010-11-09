@@ -44,7 +44,7 @@ if "printconf" in COMMAND_LINE_TARGETS or "configure" in COMMAND_LINE_TARGETS:
 targets = {
     "release":   Environment(
 		LIBPATH=['/usr/local/lib'], 
-        CXXFLAGS = ["-O"], 
+        CXXFLAGS = ["-O6"], 
         CPPDEFINES = {'DEBUG': 1, 'WITH_STOPPER': 1, 'NO_THRIFT':1}, 
         ),
     "debug":   Environment(
@@ -96,5 +96,4 @@ for key in variants:
     Export('env')
     Export('config')
     SConscript("libutility/utility/src/SConscript", build_dir = libutilitydir)
-    SConscript("libnet/src/SConscript", build_dir = libdir)
     SConscript('SConscript', build_dir = dir)
