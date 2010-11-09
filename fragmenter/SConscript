@@ -1,0 +1,24 @@
+import os
+
+Import('env')
+Import('config')
+
+def boost_lib(*name):
+    if "thread" in name and "date_time" not in name:
+        name.append("date_time")
+    return ["boost_" + n + config.get('boost_lib_suffix', '') for n in name]
+
+env.Append(
+   CPPPATH=[
+        'librtmp',
+    ],
+    CCFLAGS='-g',
+);
+
+# env.Object('smoothstr.cc')
+
+env.Program('mp4dump', [ 'mp4dump.cc', 'mp4.cc', 'mp4file.cc', 'storage.cc' ], LIBS = ['utility', 'event'] + boost_lib('thread', 'date_time'))
+
+prefix = os.path.join(config.get('prefix', '.'), 'bin')
+env.Install(prefix, ['streamd', 'rtmptproxy', 'httpbench'])
+env.Alias('install', prefix)

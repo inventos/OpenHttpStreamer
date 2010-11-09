@@ -1,0 +1,100 @@
+"""
+Usage:
+
+    scons
+    scons build=release,profile
+    scons build=all
+
+    etc.
+"""
+
+import os, pickle
+
+def save_config(config):
+    fd = open(".config", "w")
+    pickle.dump(config, fd)
+    fd.close()
+
+try:
+    assert "configure" not in COMMAND_LINE_TARGETS
+    fd = open(".config")
+    config = pickle.load(fd)
+    fd.close()
+
+except:
+    env = {}
+
+    env['CXX'] = ARGUMENTS.get("c++", os.getenv("CXX"))
+    env['CPPPATH'] = filter(None, ARGUMENTS.get("includes", "").split(","))
+    env['LIBPATH'] = filter(None, ARGUMENTS.get("libpath", "").split(","))
+
+    boost_lib_suffix = ARGUMENTS.get("boost-suffix", "")
+    prefix = ARGUMENTS.get("prefix", ".")
+
+    config = {'env': dict(filter(lambda _: _[1], env.items())), 
+              'prefix': prefix, 
+              'boost_lib_suffix': boost_lib_suffix}
+    save_config(config)
+
+if "printconf" in COMMAND_LINE_TARGETS or "configure" in COMMAND_LINE_TARGETS:
+    import pprint
+    pprint.pprint(config)
+    Exit(0)
+
+targets = {
+    "release":   Environment(
+		LIBPATH=['/usr/local/lib'], 
+        CXXFLAGS = ["-O"], 
+        CPPDEFINES = {'DEBUG': 1, 'WITH_STOPPER': 1, 'NO_THRIFT':1}, 
+        ),
+    "debug":   Environment(
+		LIBPATH=['/usr/local/lib'], 
+        CXXFLAGS = ["-O0", "-g", "-fkeep-inline-functions", "-fmerge-all-constants"], 
+        CPPDEFINES = {'DEBUG': 1, 'WITH_STOPPER': 1, 'NO_THRIFT':1}, 
+        ),
+}
+
+try:
+    variants = ARGUMENTS["build"]
+except KeyError:
+    try:
+        variants = config["build"]
+    except KeyError:
+        variants = "debug"
+if not config.get("build", "") == variants:
+    config["build"] = variants
+    save_config(config)
+
+if "prefix" in ARGUMENTS:
+    config["prefix"] = ARGUMENTS["prefix"]
+    save_config(config)
+
+if variants == 'all':
+    variants = targets.keys()
+else:
+    variants = [x for x in variants.split(',') if x in targets]
+
+target_prog = ARGUMENTS.get("program", "all")
+
+for key in variants:
+    dir = "." + key
+    libdir = os.path.join("#libnet", dir)
+    libutilitydir = os.path.join("#libutility", dir)
+    env = targets[key]
+    env.Append(LIBPATH = [libdir, libutilitydir],
+               CPPPATH = ["#libnet", "#libutility"],
+               CPPDEFINES = {
+                   'BOOST_SP_USE_QUICK_ALLOCATOR': 1,
+               },
+               CXXFLAGS = ['-Woverloaded-virtual', '-Wall', '-std=c++0x'],
+              )
+    for key, value in config['env'].items():
+        if type(value) == type([]):
+            env.Append(**{key: value})
+        else:
+            env[key] = value
+    Export('env')
+    Export('config')
+    SConscript("libutility/utility/src/SConscript", build_dir = libutilitydir)
+    SConscript("libnet/src/SConscript", build_dir = libdir)
+    SConscript('SConscript', build_dir = dir)
