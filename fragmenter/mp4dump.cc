@@ -7,6 +7,9 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/mman.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 namespace {
     std::string manifest_name = "manifest.f4m";
@@ -186,6 +189,7 @@ void ok(const ::boost::shared_ptr<mp4::Context>& ctx) {
 
     std::cout << "writing..." << std::endl;
     std::vector<Fragment> fragments = write_fragments(ctx, 10); 
+    // int bootstrap = open("bootstrap", O_CREAT|O_WRONLY, 0644);
 
     std::stringbuf abst;
     abst.sputc(0); // version
