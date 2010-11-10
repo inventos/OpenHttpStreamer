@@ -82,7 +82,7 @@ std::vector<Fragment> write_fragments(const ::boost::shared_ptr<mp4::Context>& c
     unsigned nsample = 0;
     std::vector<Fragment> fragments;
     std::stringbuf sb;
-    
+
     if ( ctx->has_video() ) {
         sb.sputc(9);
         auto ve = ctx->videoextra();
@@ -104,7 +104,6 @@ std::vector<Fragment> write_fragments(const ::boost::shared_ptr<mp4::Context>& c
         write32(sb, ae.size() + 13);
     }
 
-
     while ( nsample < ctx->nsamples() ) {
         std::cerr << "nsample=" << nsample << ", ";
         mp4::SampleInfo *si = ctx->get_sample(nsample++);
@@ -125,7 +124,7 @@ std::vector<Fragment> write_fragments(const ::boost::shared_ptr<mp4::Context>& c
             total += 5;
         }
         else {
-            sb.sputc(9);
+            sb.sputc(8);
             write24(sb, si->_sample_size + 2);
             total += 2;
         }
@@ -134,16 +133,16 @@ std::vector<Fragment> write_fragments(const ::boost::shared_ptr<mp4::Context>& c
         write24(sb, 0);
         if ( si->_video ) {
             if ( si->_keyframe ) {
-                sb.sputn("\x17\x1\x0\x0\x0", 5);
+                sb.sputn("\x17\x1", 2);
             }
             else {
-                sb.sputn("\x27\x1\x0\x0\x0", 5);
+                sb.sputn("\x27\x1", 2);
             }
+            write24(sb, 0); // composition time offset
         }
         else {
             sb.sputn("\xaf\x1", 2);
         }
-        // sb.sputn(get_data(si->_offset, si->_sample_size), si->_sample_size);
         sb.sputn((char*)mapping + si->_offset, si->_sample_size);
         write32(sb, total);
     }
@@ -167,7 +166,7 @@ void ok(const ::boost::shared_ptr<mp4::Context>& ctx) {
       << std::endl;
 
     std::cout << "writing..." << std::endl;
-    std::vector<Fragment> fragments = write_fragments(ctx, 2); 
+    std::vector<Fragment> fragments = write_fragments(ctx, 10); 
 
     // int bootstrap = open("bootstrap", O_CREAT|O_WRONLY, 0644);
 
