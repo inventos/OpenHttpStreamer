@@ -1,7 +1,7 @@
 #include "storage.hh"
 #include "mp4file.hh"
 #include "utility/reactor.hh"
-#include "utility/logger.hh"
+#include <boost/program_options.hpp>
 #include <sstream>
 #include <fstream>
 #include <netinet/in.h>
@@ -61,12 +61,23 @@ void close_fragment(unsigned segment, unsigned fragment, const std::string& frag
     if ( fragdata.size() ) {
         std::stringstream filename;
         filename << "Seg" << segment << "-Frag" << fragment;
+        size_t fragment_size = fragdata.size() + 8;
+        char prefix[8];
+        prefix[0] = (fragment_size >> 24) & 0xFF;
+        prefix[1] = (fragment_size >> 16) & 0xFF;
+        prefix[2] = (fragment_size >> 8) & 0xFF;
+        prefix[3] = fragment_size & 0xFF;
+        prefix[4] = 'm';
+        prefix[5] = 'd';
+        prefix[6] = 'a';
+        prefix[7] = 't';
+
         std::ofstream out(filename.str().c_str());
         assert (out);
-        std::streambuf *pb = out.rdbuf();
-        write32(*pb, fragdata.size() + 8);
-        pb->sputn("mdat", 4);
-        pb->sputn(fragdata.c_str(), fragdata.size());
+
+        out.write(prefix, 8);
+        out.write(fragdata.c_str(), fragdata.size());
+
         out.close();
         fragments.push_back(Fragment(ts, duration));
         assert(duration != 0);
@@ -248,4 +259,5 @@ int main(int argc, char **argv) {
     assert ( mapping != (void*)(-1) );
     run_parser(argv[1]);
     utility::reactor::run();
+    std::cerr << "That's all!\n";
 }
