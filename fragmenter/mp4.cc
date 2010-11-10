@@ -271,6 +271,9 @@ namespace mp4 {
         else if ( EQ(data+4, "stsd") ) {
             _ctx->push_state(make_shared<Stsd>(), sz, sz);
         }
+        else if ( EQ(data+4, "ctts") ) {
+            _ctx->push_state(make_shared<Ctts>(), sz, sz);
+        }
         else {
             skip(sz);
         }
