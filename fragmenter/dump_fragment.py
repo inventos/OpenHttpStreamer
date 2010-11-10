@@ -6,7 +6,7 @@ fd = open(sys.argv[1])
 data = fd.read()
 tagsize = unpack(">I", data[:4])[0]
 assert len(data) == tagsize, "len=%d, tagsize=%d" % (len(data), tagsize)
-assert data[4:8] == "mdat"
+assert data[4:8] == "mdat", data[4:8]
 data = data[8:]
 while data:
     tag = ord(data[0])
