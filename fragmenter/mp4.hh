@@ -36,6 +36,7 @@ namespace mp4 {
         uint32_t _timescale;
         uint32_t _pwidth, _pheight;
         std::vector<uint32_t> _sample_size;
+        std::vector<std::pair<uint32_t, uint32_t> > _compos_deltas;
         std::vector<uint64_t> _chunk_offsets;
         std::vector<uint64_t> _stss;
         std::vector<std::pair<uint64_t, uint64_t> > _stts;
@@ -55,6 +56,7 @@ namespace mp4 {
 
     struct SampleInfo {
         uint64_t _timestamp;
+        uint64_t _compos_timestamp;
         uint64_t _number;
         uint64_t _offset;
         uint32_t _timescale;
@@ -63,6 +65,7 @@ namespace mp4 {
         bool _keyframe;
 
         double timestamp() const { return double(_timestamp) / _timescale; }
+        double compos_timestamp() const { return double(_compos_timestamp) / _timescale; }
     };
 
     class MetaInfo {

@@ -107,8 +107,8 @@ std::vector<Fragment> write_fragments(const ::boost::shared_ptr<mp4::Context>& c
     while ( nsample < ctx->nsamples() ) {
         std::cerr << "nsample=" << nsample << ", ";
         mp4::SampleInfo *si = ctx->get_sample(nsample++);
-        now = si->timestamp();
-        std::cerr << "timestamp=" << now << "\n";
+        now = si->compos_timestamp();
+        std::cerr << "compos timestamp=" << now << "\n";
 
         unsigned total = 11 + si->_sample_size;
         if ( si->_video ) {

@@ -122,6 +122,11 @@ namespace mp4 {
         virtual void parse(const char *data);
     };
 
+    struct Ctts : public Parser {
+        // Stss(size_t total) : Parser(total) { _wants = total; }
+        virtual void parse(const char *data);
+    };
+
     struct Stsc : public Parser {
         // Stsc(size_t total) : Parser(total) { _wants = total; }
         virtual void parse(const char *data);
@@ -322,6 +327,21 @@ namespace mp4 {
         }
         _ctx->pop_state();
     }
+
+    void Ctts::parse(const char *data) {
+        MP4_CHECK ( _total >= 12 );
+        //MP4_CHECK ( UINT16(data + 2) == 0 );
+
+        uint32_t entry_count = UINT32(data + 4);
+        const char* cur_record = data + 8;
+        for (uint32_t i = 0; i < entry_count; ++i)
+        {
+        	MP4_CHECK(_total >= cur_record + 8 - data);
+        	_ctx->_current_parsed->_compos_deltas.push_back(std::pair<uint32_t, uint32_t>(UINT32(cur_record), UINT32(cur_record + 4)));
+        	cur_record += 8;
+        }
+    }
+
 
     void Stco::parse(const char *data) {
         MP4_CHECK(UINT16(data) == 0);
@@ -535,6 +555,10 @@ namespace mp4 {
 
         assert ( chunk_run->_desc_index == 1 );
 
+        typedef std::pair<uint32_t,uint32_t> ctts_entry_type;
+        int order_n = 0;
+        std::vector<ctts_entry_type>::iterator cur_ctts_entry = track->_compos_deltas.begin();
+
         BOOST_FOREACH( const stts_entry_type& entry, track->_stts ) {
             for ( unsigned iii = 0; iii < entry.first; ++iii ) {
                 _samples.push_back(SampleInfo());
@@ -542,6 +566,25 @@ namespace mp4 {
                 last._timestamp = current_time;
                 last._timescale = track->_timescale;
                 // last._number = number;
+
+                uint32_t compos_delta;
+                if (cur_ctts_entry != track->_compos_deltas.end())
+                {
+                	compos_delta = cur_ctts_entry->second;
+                	++order_n;
+                	if (order_n >= cur_ctts_entry->first)
+                	{
+                		++cur_ctts_entry;
+                		order_n = 0;
+                	}
+                }
+                else
+                {
+                	compos_delta = 0;
+                }
+
+                last._compos_timestamp = last._timestamp + compos_delta;
+
 
                 uint32_t sample_size = track->_sample_size[number];
                 last._sample_size = sample_size;
