@@ -26,31 +26,31 @@ namespace {
 
 
 void write16(std::streambuf& buf, uint16_t value) {
-    buf.sputc( (value >> 8) % 0xFF );
+    buf.sputc( (value >> 8) & 0xFF );
     buf.sputc( value & 0xFF );
 }
 
 void write24(std::streambuf& buf, uint32_t value) {
-    buf.sputc( (value >> 16) % 0xFF );
-    buf.sputc( (value >> 8) % 0xFF );
+    buf.sputc( (value >> 16) & 0xFF );
+    buf.sputc( (value >> 8) & 0xFF );
     buf.sputc( value & 0xFF );
 }
 
 void write32(std::streambuf& buf, uint32_t value) {
-    buf.sputc( (value >> 24) % 0xFF );
-    buf.sputc( (value >> 16) % 0xFF );
-    buf.sputc( (value >> 8) % 0xFF );
+    buf.sputc( (value >> 24) & 0xFF );
+    buf.sputc( (value >> 16) & 0xFF );
+    buf.sputc( (value >> 8) & 0xFF );
     buf.sputc( value & 0xFF );
 }
 
 void write64(std::streambuf& buf, uint64_t value) {
-    buf.sputc( (value >> 56) % 0xFF );
-    buf.sputc( (value >> 48) % 0xFF );
-    buf.sputc( (value >> 40) % 0xFF );
-    buf.sputc( (value >> 32) % 0xFF );
-    buf.sputc( (value >> 24) % 0xFF );
-    buf.sputc( (value >> 16) % 0xFF );
-    buf.sputc( (value >> 8) % 0xFF );
+    buf.sputc( (value >> 56) & 0xFF );
+    buf.sputc( (value >> 48) & 0xFF );
+    buf.sputc( (value >> 40) & 0xFF );
+    buf.sputc( (value >> 32) & 0xFF );
+    buf.sputc( (value >> 24) & 0xFF );
+    buf.sputc( (value >> 16) & 0xFF );
+    buf.sputc( (value >> 8) & 0xFF );
     buf.sputc( value & 0xFF );
 }
 
@@ -134,7 +134,7 @@ std::vector<Fragment> write_fragments(const ::boost::shared_ptr<mp4::Context>& c
         std::cerr << "nsample=" << nsample << ", ";
         mp4::SampleInfo *si = ctx->get_sample(nsample++);
         now = si->timestamp();
-        std::cerr << "compos timestamp=" << now << "\n";
+        std::cerr << "timestamp=" << now << ", ";
 
         unsigned total = 11 + si->_sample_size;
         if ( si->_video ) {
@@ -156,6 +156,7 @@ std::vector<Fragment> write_fragments(const ::boost::shared_ptr<mp4::Context>& c
         }
         unsigned uts = now * 1000;
         write24(sb, uts); sb.sputc( (uts >> 24) & 0xff );
+        std::cerr << "timestamp_24=" << std::hex << uts << "\n";
         write24(sb, 0);
         if ( si->_video ) {
             if ( si->_keyframe ) {
@@ -164,7 +165,7 @@ std::vector<Fragment> write_fragments(const ::boost::shared_ptr<mp4::Context>& c
             else {
                 sb.sputn("\x27\x1", 2);
             }
-            write24(sb, 0); // composition time offset
+            write24(sb, si->_composition_offset * 1000.0 / si->_timescale); // composition time offset
         }
         else {
             sb.sputn("\xaf\x1", 2);
@@ -247,16 +248,17 @@ void ok(const ::boost::shared_ptr<mp4::Context>& ctx) {
     writebox(*out.rdbuf(), "abst", abst.str());
     out.close();
 
+    std::string info("bt");
     std::stringstream manifestname;
     manifestname << docroot << '/' << basedir << '/' << manifest_name;
     std::ofstream manifest_out(manifestname.str().c_str());
     manifest_out << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
       "<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n"
       "<id>" << video_id << "</id>\n"
-      "<streamtype>recorded</streamtype>\n"
+      "<streamType>recorded</streamType>\n"
       "<duration>" << ctx->duration() << "</duration>\n"
-      "<bootstrapinfo profile=\"named\" url=\"" << bootstrapinfo_name << """/>>\n"
-      "<media streamId=\"sample\" url=\"" << fragments_dir << '/' << """/>\n"
+      "<bootstrapInfo profile=\"named\" url=\"" << bootstrapinfo_name << "\" id=\"" << info << "\" />>\n"
+      "<media streamId=\"" << video_id << "\" url=\"" << fragments_dir << '/' << "\" bootstrapinfoId=\"" << info << "\" />\n"
       "</manifest>\n";
     out.close();
 }
