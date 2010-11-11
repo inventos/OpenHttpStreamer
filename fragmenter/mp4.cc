@@ -587,8 +587,7 @@ namespace mp4 {
                 	compos_delta = 0;
                 }
 
-                //last._compos_timestamp = last._timestamp + compos_delta;
-                last._compos_timestamp = compos_delta;
+                last._composition_offset = compos_delta;
 
 
                 uint32_t sample_size = track->_sample_size[number];
@@ -638,6 +637,7 @@ namespace mp4 {
         };
     }
 #else
+    /*
     namespace {
     struct ComposSorter {
     	bool operator()(const SampleInfo& sample1, const SampleInfo& sample2) const {
@@ -653,6 +653,7 @@ namespace mp4 {
     	}
     };
     }
+    */
 #endif
 
     void Context::finalize() {
