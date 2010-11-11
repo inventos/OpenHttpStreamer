@@ -587,7 +587,8 @@ namespace mp4 {
                 	compos_delta = 0;
                 }
 
-                last._compos_timestamp = last._timestamp + compos_delta;
+                //last._compos_timestamp = last._timestamp + compos_delta;
+                last._compos_timestamp = compos_delta;
 
 
                 uint32_t sample_size = track->_sample_size[number];
@@ -620,7 +621,7 @@ namespace mp4 {
             }
         }
     }
-
+#ifndef COMPOS_SORTER
     namespace {
         struct SampleSorter {
             bool operator()(const SampleInfo& sample1, const SampleInfo& sample2) const {
@@ -636,11 +637,32 @@ namespace mp4 {
             }
         };
     }
+#else
+    namespace {
+    struct ComposSorter {
+    	bool operator()(const SampleInfo& sample1, const SampleInfo& sample2) const {
+    		return sample1.compos_timestamp() < sample2.compos_timestamp() ||
+    				( sample1.compos_timestamp() == sample2.compos_timestamp() &&
+    						sample1._offset < sample2._offset );
+    	}
+    	bool operator()(const SampleInfo& sample1, double timestamp) const {
+    		return sample1.compos_timestamp() < timestamp ;
+    	}
+    	bool operator()(double timestamp, const SampleInfo& sample2) const {
+    		return timestamp < sample2.compos_timestamp();
+    	}
+    };
+    }
+#endif
 
     void Context::finalize() {
         if ( _video ) _unfold(_video, true);
         if ( _audio ) _unfold(_audio, false);
+#ifndef COMPOS_SORTER
         std::sort(_samples.begin(), _samples.end(), SampleSorter());
+#else
+        std::sort(_samples.begin(), _samples.end(), ComposSorter());
+#endif
 
         // XXX
         uint64_t nbits = 0;
@@ -684,16 +706,16 @@ namespace mp4 {
     }
 
     unsigned Context::find_sample(double timestamp) {
-        decltype(_samples.begin()) iter = ::std::lower_bound(_samples.begin(), _samples.end(), timestamp, SampleSorter());
-        if ( iter != _samples.end() ) {
-            if ( iter == _samples.begin() ) {
-                return 0;
-            }
-            if ( double(iter->_timestamp) / iter->_timescale < timestamp ) {
-                ++iter;
-            }
-            return iter - _samples.begin();
-        }
+        //decltype(_samples.begin()) iter = ::std::lower_bound(_samples.begin(), _samples.end(), timestamp, SampleSorter());
+//        if ( iter != _samples.end() ) {
+//            if ( iter == _samples.begin() ) {
+//                return 0;
+//            }
+//            if ( double(iter->_timestamp) / iter->_timescale < timestamp ) {
+//                ++iter;
+//            }
+//            return iter - _samples.begin();
+//        }
         return _samples.size();
     }
 
