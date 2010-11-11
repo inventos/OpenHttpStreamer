@@ -56,16 +56,15 @@ namespace mp4 {
 
     struct SampleInfo {
         uint64_t _timestamp;
-        uint64_t _compos_timestamp;
         uint64_t _number;
         uint64_t _offset;
+        uint32_t _composition_offset;
         uint32_t _timescale;
         uint32_t _sample_size;
         bool _video;
         bool _keyframe;
 
         double timestamp() const { return double(_timestamp) / _timescale; }
-        double compos_timestamp() const { return double(_compos_timestamp) / _timescale; }
     };
 
     class MetaInfo {

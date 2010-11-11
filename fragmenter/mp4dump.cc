@@ -2,6 +2,7 @@
 #include "mp4file.hh"
 #include "utility/reactor.hh"
 #include <boost/program_options.hpp>
+#include <boost/filesystem.hpp>
 #include <sstream>
 #include <fstream>
 #include <netinet/in.h>
@@ -10,6 +11,19 @@
 #include <sys/mman.h>
 
 using namespace utility;
+namespace fs = boost::filesystem;
+
+
+namespace {
+    std::string manifest_name = "manifest.f4m";
+    std::string docroot = ".";
+    std::string basedir = ".";
+    std::string bootstrapinfo_name("bootstrap");
+    std::string fragments_dir("samples");
+    std::string video_id("some_video");
+    std::string srcfile;
+}
+
 
 void write16(std::streambuf& buf, uint16_t value) {
     buf.sputc( (value >> 8) % 0xFF );
@@ -60,7 +74,7 @@ struct Fragment {
 void close_fragment(unsigned segment, unsigned fragment, const std::string& fragdata, std::vector<Fragment>& fragments, double ts, double duration) {
     if ( fragdata.size() ) {
         std::stringstream filename;
-        filename << "Seg" << segment << "-Frag" << fragment;
+        filename << docroot << '/' << basedir << '/' << fragments_dir << '/' << "Seg" << segment << "-Frag" << fragment;
         size_t fragment_size = fragdata.size() + 8;
         char prefix[8];
         prefix[0] = (fragment_size >> 24) & 0xFF;
@@ -73,6 +87,7 @@ void close_fragment(unsigned segment, unsigned fragment, const std::string& frag
         prefix[7] = 't';
 
         std::ofstream out(filename.str().c_str());
+        std::cerr << filename.str() << std::endl;
         assert (out);
 
         out.write(prefix, 8);
@@ -118,7 +133,6 @@ std::vector<Fragment> write_fragments(const ::boost::shared_ptr<mp4::Context>& c
     while ( nsample < ctx->nsamples() ) {
         std::cerr << "nsample=" << nsample << ", ";
         mp4::SampleInfo *si = ctx->get_sample(nsample++);
-        //now = si->compos_timestamp();
         now = si->timestamp();
         std::cerr << "compos timestamp=" << now << "\n";
 
@@ -180,8 +194,6 @@ void ok(const ::boost::shared_ptr<mp4::Context>& ctx) {
     std::cout << "writing..." << std::endl;
     std::vector<Fragment> fragments = write_fragments(ctx, 10); 
 
-    // int bootstrap = open("bootstrap", O_CREAT|O_WRONLY, 0644);
-
     std::stringbuf abst;
     abst.sputc(0); // version
     abst.sputn("\0\0", 3); // flags;
@@ -227,15 +239,57 @@ void ok(const ::boost::shared_ptr<mp4::Context>& ctx) {
     }
     writebox(abst, "afrt", afrt.str());
 
-    std::ofstream out("bootstrap");
+    std::stringstream bootstrapname;
+    bootstrapname << docroot << '/' << basedir << '/' << bootstrapinfo_name;
+    std::string bootstrap_path = bootstrapname.str();
+    std::ofstream out(bootstrap_path.c_str());
     assert ( out );
     writebox(*out.rdbuf(), "abst", abst.str());
     out.close();
 
+    std::stringstream manifestname;
+    manifestname << docroot << '/' << basedir << '/' << manifest_name;
+    std::ofstream manifest_out(manifestname.str().c_str());
+    manifest_out << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+      "<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n"
+      "<id>" << video_id << "</id>\n"
+      "<streamtype>recorded</streamtype>\n"
+      "<duration>" << ctx->duration() << "</duration>\n"
+      "<bootstrapinfo profile=\"named\" url=\"" << bootstrapinfo_name << """/>>\n"
+      "<media streamId=\"sample\" url=\"" << fragments_dir << '/' << """/>\n"
+      "</manifest>\n";
+    out.close();
 }
 
 void fail(const ::std::string& msg) { 
     std::cerr << "fail: " << msg << '\n'; utility::reactor::stop(); 
+}
+
+
+void parse_options(int argc, char **argv) {
+    namespace po = boost::program_options;
+
+    po::options_description desc("Allowed options");
+    desc.add_options()
+      ("help", "produce help message")
+      ("src", po::value<std::string>(&srcfile), "source mp4 file name")
+      ("docroot", po::value<std::string>(&docroot)->default_value("."), "docroot directory")
+      ("basedir", po::value<std::string>(&basedir)->default_value("."), "base directory for manifest file")
+      ("fragments", po::value<std::string>(&fragments_dir)->default_value("samples"), "directory for fragment files")
+      ("video_id", po::value<std::string>(&video_id)->default_value("some_video"), "video id for manifest file")
+      ("manifest", po::value<std::string>(&manifest_name)->default_value("manifest.f4m"), "manifest file name")
+      ("bootstrapinfo", po::value<std::string>(&bootstrapinfo_name)->default_value("bootstrapinfo"), "bootstrapinfo file name")
+    ;
+
+    po::variables_map vm;
+    po::store(po::parse_command_line(argc, argv, desc), vm);
+    po::notify(vm);    
+
+    if (vm.count("help") || argc == 1 || srcfile.size() == 0) {
+        std::cerr << desc << "\n";
+        exit(1);
+    }
+    
 }
 
 
@@ -244,6 +298,7 @@ struct Callback : public mp4::ParseCallback {
 };
 Callback ctx;
 
+
 void run_parser(const std::string& filename) {
     ctx._success = ok;
     ctx._failure = fail;
@@ -251,14 +306,16 @@ void run_parser(const std::string& filename) {
     mp4::a_parse_mp4(ctx.src, &ctx);
 }
 
+
 int main(int argc, char **argv) {
     // reactor::set_timer(::boost::bind(run_parser, argv[1]), 1000);
+    parse_options(argc, argv);
     struct stat st;
-    assert ( stat(argv[1], &st) != -1 );
-    int fd = open(argv[1], O_RDONLY);
+    assert ( stat(srcfile.c_str(), &st) != -1 );
+    int fd = open(srcfile.c_str(), O_RDONLY);
     mapping = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED, fd, 0);
     assert ( mapping != (void*)(-1) );
-    run_parser(argv[1]);
+    run_parser(srcfile);
     utility::reactor::run();
     std::cerr << "That's all!\n";
 }
