@@ -343,6 +343,7 @@ namespace mp4 {
         	_ctx->_current_parsed->_compos_deltas.push_back(std::pair<uint32_t, uint32_t>(UINT32(cur_record), UINT32(cur_record + 4)));
         	cur_record += 8;
         }
+        _ctx->pop_state();
     }
 
 
