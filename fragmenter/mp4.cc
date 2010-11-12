@@ -1,7 +1,7 @@
 #include "mp4.hh"
-#include "utility/make_shared.hh"
-#include "utility/logger.hh"
 #include <boost/foreach.hpp>
+#include <boost/make_shared.hpp>
+#include <stdexcept>
 #include <assert.h>
 #include <limits.h>
 #include <stdint.h>
@@ -11,7 +11,7 @@
 #include <errno.h>
 
 #define MP4_CHECK(exp) if ( !(exp) ) { throw std::runtime_error(std::string("mp4 format error: ") + #exp); } else
-
+using boost::make_shared;
 
 namespace {
     uint16_t __swab16(uint16_t x)
@@ -36,8 +36,8 @@ namespace {
     }
 }
 
-::utility::logger::category lMp4("mp4");
-using ::utility::logger::Param;
+// ::utility::logger::category lMp4("mp4");
+// using ::utility::logger::Param;
 
 namespace mp4 {
 
@@ -218,7 +218,7 @@ namespace mp4 {
     void Tkhd::parse(const char *data) {
         uint16_t version = UINT8(data);
         if ( version == 1 ) {
-            LOG(lMp4, 5, Param("duration"), UINT64(data + 28));
+            // LOG(lMp4, 5, Param("duration"), UINT64(data + 28));
             data += 28 + 8;
         }
         else {
@@ -227,9 +227,11 @@ namespace mp4 {
         }
         _ctx->_current_parsed->_pwidth = UINT32(data + 52);
         _ctx->_current_parsed->_pheight = UINT32(data + 56);
+        /*
         if ( uint64_t pheight = _ctx->_current_parsed->_pheight ) {
-            LOG(lMp4, 5, Param("aspect"), double(_ctx->_current_parsed->_pwidth)/pheight);
+            // LOG(lMp4, 5, Param("aspect"), double(_ctx->_current_parsed->_pwidth)/pheight);
         }
+        */
         _ctx->pop_state();
     }
 
@@ -300,11 +302,11 @@ namespace mp4 {
         MP4_CHECK ( _total >  24 );
         if ( memcmp(data + 8, "vide", 4) == 0 ) {
             _ctx->_video = _ctx->_current_parsed;
-            LOG(lMp4, 5, "current_parsed is video");
+            // LOG(lMp4, 5, "current_parsed is video");
         }
         else if ( memcmp(data + 8, "soun", 4) == 0 ) {
             _ctx->_audio = _ctx->_current_parsed;
-            LOG(lMp4, 5, "current_parsed is audio");
+            // LOG(lMp4, 5, "current_parsed is audio");
         }
         _ctx->pop_state();
     }
@@ -339,7 +341,7 @@ namespace mp4 {
         const char* cur_record = data + 8;
         for (uint32_t i = 0; i < entry_count; ++i)
         {
-        	MP4_CHECK(_total >= cur_record + 8 - data);
+        	MP4_CHECK(_total >= unsigned(cur_record + 8 - data));
         	_ctx->_current_parsed->_compos_deltas.push_back(std::pair<uint32_t, uint32_t>(UINT32(cur_record), UINT32(cur_record + 4)));
         	cur_record += 8;
         }
@@ -514,17 +516,19 @@ namespace mp4 {
             }
             unsigned wants = _parser->_wants;
             unsigned buffersize = _buffer.size();
-            LOG(lMp4, 5, "feeding", Param("to_skip"), _parser->_to_skip, Param("wants"), wants, Param("buffersize"), buffersize);
+            // LOG(lMp4, 0, "feeding", Param("to_skip"), _parser->_to_skip, Param("wants"), wants, Param("buffersize"), buffersize);
             if ( wants <= buffersize ) {
                 _parser->parse(&_buffer[0]);
                 // std::cerr << "after parsing skip=" << _parser->_to_skip << ", wants=" << wants << ", buffersize=" << buffersize << "\n";
                 unsigned to_skip = _parser->_to_skip + wants;
                 if ( long(to_skip) != long(_parser->_to_skip) + long(wants) ) { // overflow
-                    LOG(lMp4, 0, "overflow", Param("to_skip"), _parser->_to_skip, Param("wants"), wants,
-                        Param("buffersize"), buffersize);
+                    // LOG(lMp4, 0, "overflow", Param("to_skip"), _parser->_to_skip, Param("wants"), wants, Param("buffersize"), buffersize);
                 }
                 if ( (unsigned long)(_parser->_to_skip) + (unsigned long)(wants) < buffersize ) {
-                    assert ( _parser->_to_skip < buffersize );
+                    if ( _parser->_to_skip >= buffersize ) {
+                        std::cerr << "to_skip=" << _parser->_to_skip << ", buffersize=" << buffersize << std::endl;
+                        assert ( _parser->_to_skip < buffersize );
+                    }
                     assert ( wants < buffersize );
                     _buffer.erase(_buffer.begin(), _buffer.begin() + to_skip);
                     assert ( _buffer.size() == buffersize - to_skip );
@@ -560,7 +564,7 @@ namespace mp4 {
         assert ( chunk_run->_desc_index == 1 );
 
         typedef std::pair<uint32_t,uint32_t> ctts_entry_type;
-        int order_n = 0;
+        unsigned int order_n = 0;
         std::vector<ctts_entry_type>::iterator cur_ctts_entry = track->_compos_deltas.begin();
 
         BOOST_FOREACH( const stts_entry_type& entry, track->_stts ) {

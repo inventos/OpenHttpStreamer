@@ -1,18 +1,11 @@
-#include "storage.hh"
-#include "mp4file.hh"
-#include "utility/reactor.hh"
+#include "mp4.hh"
 #include <boost/program_options.hpp>
-#include <boost/filesystem.hpp>
 #include <sstream>
 #include <fstream>
 #include <netinet/in.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/mman.h>
-
-using namespace utility;
-namespace fs = boost::filesystem;
-
 
 namespace {
     std::string manifest_name = "manifest.f4m";
@@ -179,7 +172,6 @@ std::vector<Fragment> write_fragments(const ::boost::shared_ptr<mp4::Context>& c
 
 
 void ok(const ::boost::shared_ptr<mp4::Context>& ctx) { 
-    std::cout << "ok.\n"; utility::reactor::stop(); 
     std::cout << ctx->_samples.size() << " samples found.\n";
     std::cout << "\nnsamples: " << ctx->nsamples()
       << "\nhas video: " << (ctx->has_video() ? "yes" : "no")
@@ -263,10 +255,6 @@ void ok(const ::boost::shared_ptr<mp4::Context>& ctx) {
     out.close();
 }
 
-void fail(const ::std::string& msg) { 
-    std::cerr << "fail: " << msg << '\n'; utility::reactor::stop(); 
-}
-
 
 void parse_options(int argc, char **argv) {
     namespace po = boost::program_options;
@@ -295,19 +283,6 @@ void parse_options(int argc, char **argv) {
 }
 
 
-struct Callback : public mp4::ParseCallback {
-    ::boost::shared_ptr<DataSource> src;
-};
-Callback ctx;
-
-
-void run_parser(const std::string& filename) {
-    ctx._success = ok;
-    ctx._failure = fail;
-    ctx.src = get_source(filename);
-    mp4::a_parse_mp4(ctx.src, &ctx);
-}
-
 
 int main(int argc, char **argv) {
     // reactor::set_timer(::boost::bind(run_parser, argv[1]), 1000);
@@ -317,7 +292,20 @@ int main(int argc, char **argv) {
     int fd = open(srcfile.c_str(), O_RDONLY);
     mapping = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED, fd, 0);
     assert ( mapping != (void*)(-1) );
-    run_parser(srcfile);
-    utility::reactor::run();
-    std::cerr << "That's all!\n";
+
+    boost::shared_ptr<mp4::Context> ctxt(new mp4::Context);
+    off_t offset = 0;
+    while ( unsigned nbytes = ctxt->wants() ) {
+        if ( unsigned s = ctxt->to_skip() ) {
+            offset += s;
+            ctxt->skip(0);                    
+        }
+        if ( offset >= st.st_size ) {
+            break;
+        }
+        ctxt->feed( (char*)mapping + offset, nbytes );
+        offset += nbytes;
+    }
+    ctxt->finalize();
+    ok(ctxt);
 }

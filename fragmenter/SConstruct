@@ -78,12 +78,8 @@ target_prog = ARGUMENTS.get("program", "all")
 
 for key in variants:
     dir = "." + key
-    libdir = os.path.join("#libnet", dir)
-    libutilitydir = os.path.join("#libutility", dir)
     env = targets[key]
-    env.Append(LIBPATH = [libdir, libutilitydir],
-               CPPPATH = ["#libnet", "#libutility"],
-               CPPDEFINES = {
+    env.Append(CPPDEFINES = {
                    'BOOST_SP_USE_QUICK_ALLOCATOR': 1,
                },
                CXXFLAGS = ['-Woverloaded-virtual', '-Wall', '-std=c++0x'],
@@ -95,5 +91,4 @@ for key in variants:
             env[key] = value
     Export('env')
     Export('config')
-    SConscript("libutility/utility/src/SConscript", build_dir = libutilitydir)
     SConscript('SConscript', build_dir = dir)

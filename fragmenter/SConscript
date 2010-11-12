@@ -8,15 +8,8 @@ def boost_lib(*name):
         name.append("date_time")
     return ["boost_" + n + config.get('boost_lib_suffix', '') for n in name]
 
-env.Append(
-   CPPPATH=[
-        'librtmp',
-    ],
-    CCFLAGS='-g',
-);
-
-env.Program('mp4dump', [ 'mp4dump.cc', 'mp4.cc', 'mp4file.cc', 'storage.cc' ], 
-            LIBS = ['utility', 'event'] + boost_lib('thread', 'date_time', 'filesystem', 'program_options'))
+env.Program('mp4dump', [ 'mp4dump.cc', 'mp4.cc' ], 
+            LIBS = boost_lib('program_options'))
 
 prefix = os.path.join(config.get('prefix', '.'), 'bin')
 env.Install(prefix, ['mp4dump'])
