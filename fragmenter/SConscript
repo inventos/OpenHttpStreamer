@@ -8,7 +8,7 @@ def boost_lib(*name):
         name.append("date_time")
     return ["boost_" + n + config.get('boost_lib_suffix', '') for n in name]
 
-env.Program('mp4dump', [ 'mp4dump.cc', 'mp4.cc' ], 
+env.Program('mp4dump', [ 'mp4dump.cc', 'mp4.cc', 'base64.cc' ], 
             LIBS = boost_lib('program_options'))
 
 prefix = os.path.join(config.get('prefix', '.'), 'bin')

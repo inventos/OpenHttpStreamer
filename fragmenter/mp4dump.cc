@@ -1,4 +1,5 @@
 #include "mp4.hh"
+#include "base64.hh"
 #include <boost/program_options.hpp>
 #include <sstream>
 #include <fstream>
@@ -11,7 +12,6 @@ namespace {
     std::string manifest_name = "manifest.f4m";
     std::string docroot = ".";
     std::string basedir = ".";
-    std::string bootstrapinfo_name("bootstrap");
     std::string fragments_dir("samples");
     std::string video_id("some_video");
     std::string srcfile;
@@ -232,13 +232,9 @@ void ok(const ::boost::shared_ptr<mp4::Context>& ctx) {
     }
     writebox(abst, "afrt", afrt.str());
 
-    std::stringstream bootstrapname;
-    bootstrapname << docroot << '/' << basedir << '/' << bootstrapinfo_name;
-    std::string bootstrap_path = bootstrapname.str();
-    std::ofstream out(bootstrap_path.c_str());
-    assert ( out );
-    writebox(*out.rdbuf(), "abst", abst.str());
-    out.close();
+    std::stringbuf bootstrapinfo_stream;
+    writebox(bootstrapinfo_stream, "abst", abst.str());
+    std::string bootstrapinfo = bootstrapinfo_stream.str();
 
     std::string info("bt");
     std::stringstream manifestname;
@@ -249,10 +245,12 @@ void ok(const ::boost::shared_ptr<mp4::Context>& ctx) {
       "<id>" << video_id << "</id>\n"
       "<streamType>recorded</streamType>\n"
       "<duration>" << ctx->duration() << "</duration>\n"
-      "<bootstrapInfo profile=\"named\" url=\"" << bootstrapinfo_name << "\" id=\"" << info << "\" />>\n"
+      "<bootstrapInfo profile=\"named\" id=\"" << info << "\">";
+    base64::encode(manifest_out.rdbuf(), bootstrapinfo.c_str(), bootstrapinfo.size());
+    manifest_out << "</bootstrapinfo>\n"
       "<media streamId=\"" << video_id << "\" url=\"" << fragments_dir << '/' << "\" bootstrapinfoId=\"" << info << "\" />\n"
       "</manifest>\n";
-    out.close();
+    manifest_out.close();
 }
 
 
@@ -268,7 +266,6 @@ void parse_options(int argc, char **argv) {
       ("fragments", po::value<std::string>(&fragments_dir)->default_value("samples"), "directory for fragment files")
       ("video_id", po::value<std::string>(&video_id)->default_value("some_video"), "video id for manifest file")
       ("manifest", po::value<std::string>(&manifest_name)->default_value("manifest.f4m"), "manifest file name")
-      ("bootstrapinfo", po::value<std::string>(&bootstrapinfo_name)->default_value("bootstrapinfo"), "bootstrapinfo file name")
     ;
 
     po::variables_map vm;
