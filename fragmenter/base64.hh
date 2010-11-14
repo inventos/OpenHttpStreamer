@@ -1,6 +1,7 @@
 /*
  * 
- * copyright (c) 2010 ZAO Inventos (inventos.ru), jk
+ * copyright (c) 2010 ZAO Inventos (inventos.ru)
+ * copyright (c) 2010 jk
  *
  * This file is part of VideoCycle.
  *
@@ -13,10 +14,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with FFmpeg; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef __base64_hh__e9c78cb8_9990_4225_b6e9_f8da6edbe0f3

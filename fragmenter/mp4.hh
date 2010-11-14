@@ -1,4 +1,3 @@
-
 /*
  * 
  * copyright (c) 2010 ZAO Inventos (inventos.ru)
@@ -14,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with FFmpeg; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 
@@ -109,44 +104,20 @@ namespace mp4 {
         unsigned total() const { return _parser->_total; }
         unsigned to_skip() const { return _parser->_to_skip; }
 
-#if STACK        
-        struct State {
-            ::boost::function<void (const char *, Context *, unsigned&)> handler;
-            unsigned total;
-            unsigned wants;
-            unsigned to_skip;
-            template<class F> State(F f, unsigned t, unsigned w) : handler(f), total(t), wants(w), to_skip(0) {}
-        };
-        ::std::stack<State> _parsing_state;
-#endif
 
     public:
         Context();
         virtual ~Context();
        
-#if STACK
-        void skip(unsigned count) {
-            _parsing_state.top().to_skip = count;
-            assert ( _parsing_state.top.to_skip <= _parsing_state.top().total );
-        }
-        template<class F> void push_state(F handler, unsigned total, unsigned wants) {
-            assert ( wants <= total );
-            assert ( total <= _parsing_state.top().total );
-            _parsing_state.push(State(handler, total, wants));
-        }
-        void pop_state() {
-            _parsing_state.pop();
-        }
-#else
         void skip(unsigned count) {
             _parser->_to_skip = count;
             assert ( _parser->_to_skip <= _parser->_total );
         }
         void push_state(const ::boost::shared_ptr<Parser>& p, unsigned total, unsigned wants);
         void pop_state();
-#endif
         size_t feed(const char *data, size_t sz);
         ::boost::shared_ptr<Track> _current_parsed;
+
         // valid only after full parsing:
         ::boost::shared_ptr<Track> _video;
         ::boost::shared_ptr<Track> _audio;

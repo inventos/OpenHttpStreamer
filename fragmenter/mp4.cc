@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with FFmpeg; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include "mp4.hh"
@@ -57,9 +53,6 @@ namespace {
     }
 }
 
-// ::utility::logger::category lMp4("mp4");
-// using ::utility::logger::Param;
-
 namespace mp4 {
 
 #define UINT8(addr) (*reinterpret_cast<const uint8_t*>(addr))
@@ -67,7 +60,6 @@ namespace mp4 {
 #define UINT32(addr) (__swab32(*reinterpret_cast<const uint32_t*>(addr)))
 #define UINT64(addr) (__swab64(*reinterpret_cast<const uint64_t*>(addr)))
 
-// #define EQ(addr, TAG) (*reinterpret_cast<const uint32_t*>(addr) == *reinterpret_cast<const uint32_t*>(TAG))
 #define EQ(addr, TAG) ( memcmp(addr, TAG, 4) == 0)
 
 
@@ -478,13 +470,6 @@ namespace mp4 {
                 if ( data + 86 < end ) {
                     MP4_CHECK ( end - data >= 86 + 8 );
                     uint32_t cab_size = UINT32(data + 86);
-#if 0
-                    std::cerr << "Stsd:  " << cab_size << ":" << std::string(data + 90, 4) << std::endl;
-                    int fd = open("clap-pasp", O_WRONLY | O_CREAT | O_TRUNC, 0644);
-                    assert ( fd != -1 );
-                    if ( write(fd, data + 86, cab_size) == -1 ) perror("fuck");
-                    close(fd);
-#endif
 
                     std::swap(_ctx->_video->_extradata, std::vector<char>(data + 94, data + 94 + cab_size - 8));
 
@@ -594,7 +579,6 @@ namespace mp4 {
                 SampleInfo& last = _samples.back();
                 last._timestamp = current_time;
                 last._timescale = track->_timescale;
-                // last._number = number;
 
                 uint32_t compos_delta;
                 if (cur_ctts_entry != track->_compos_deltas.end())
@@ -645,7 +629,6 @@ namespace mp4 {
             }
         }
     }
-#ifndef COMPOS_SORTER
     namespace {
         struct SampleSorter {
             bool operator()(const SampleInfo& sample1, const SampleInfo& sample2) const {
@@ -661,34 +644,11 @@ namespace mp4 {
             }
         };
     }
-#else
-    /*
-    namespace {
-    struct ComposSorter {
-    	bool operator()(const SampleInfo& sample1, const SampleInfo& sample2) const {
-    		return sample1.compos_timestamp() < sample2.compos_timestamp() ||
-    				( sample1.compos_timestamp() == sample2.compos_timestamp() &&
-    						sample1._offset < sample2._offset );
-    	}
-    	bool operator()(const SampleInfo& sample1, double timestamp) const {
-    		return sample1.compos_timestamp() < timestamp ;
-    	}
-    	bool operator()(double timestamp, const SampleInfo& sample2) const {
-    		return timestamp < sample2.compos_timestamp();
-    	}
-    };
-    }
-    */
-#endif
 
     void Context::finalize() {
         if ( _video ) _unfold(_video, true);
         if ( _audio ) _unfold(_audio, false);
-#ifndef COMPOS_SORTER
         std::sort(_samples.begin(), _samples.end(), SampleSorter());
-#else
-        std::sort(_samples.begin(), _samples.end(), ComposSorter());
-#endif
 
         // XXX
         uint64_t nbits = 0;
