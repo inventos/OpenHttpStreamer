@@ -123,6 +123,10 @@ def ver_to_str(int_ver):
     return "%d.%d.%d" % (int_ver // 10000, int_ver // 100 % 100, int_ver % 100) 
 
 def compiler_check():
+    
+    #Configure.CheckCXX()
+    
+    
     gcc_int_ver = 40300
     for ac_prog in ["g++", "c++", "gpp", "aCC", "CC", "cxx" "cc++"]:# too exotic cl.exe FCC KCC RCC xlC_r xlC:
         (retcode, _) = run_cmd_silently(["which", ac_prog], True) 
@@ -131,6 +135,7 @@ def compiler_check():
             break
             
     (ret, out) = run_cmd_silently([ac_prog, "--version"], True)
+
     gcc_ver = re.search("\(GCC\) (\d*)\.(\d*)\.(\d*)", out)
     rsl_gcc_ver = 0
     if gcc_ver and len(gcc_ver.groups()) >= 3:
@@ -161,14 +166,14 @@ def boost_ver_check(context):
     if result == 0:
         print "Can't find boost headers. Probably boost not installed."
         context.Result(0)
-        return -1
+        return False
     
     (result, out) = context.TryRun(ver_check, '.cc')
     #print result, ":", out
     if result == 0:
         print "Unknown error."
         context.Result(0)
-        return -1
+        return False
     
     #http://www.boost.org/doc/libs/1_39_0/libs/config/doc/html/boost_config/boost_macro_reference.html#boost_config.boost_macro_reference.boost_informational_macros
     

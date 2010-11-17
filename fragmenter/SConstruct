@@ -11,6 +11,7 @@ Usage:
 import os, pickle
 from utils import suffix_check, header_check, compiler_check, boost_ver_check
 
+
 def save_config(config):
     fd = open(".config", "w")
     pickle.dump(config, fd)
@@ -24,27 +25,11 @@ try:
 
 except:
 
-	chk_env = Environment()
-	
-	
 	env = {}
 
-	if os.getenv("CXX"):
-		env['CXX'] = os.getenv("CXX")
-	else:
-		ret = compiler_check()
-		if ret:
-			env['CXX'] = ret
-		else:
-			Exit(1) 
-
-	chk_conf = Configure(chk_env, custom_tests = {"boost_ver_check" : boost_ver_check})
-	if not chk_conf.boost_ver_check():
-		Exit(1)
-		
 	env['CPPPATH'] = filter(None, ARGUMENTS.get("includes", "").split(","))
 	env['CPPPATH'].append("libutility")
-
+	
 	#if not header_check(os.getpwd(), env, env['CPPPATH'], ["", "/libutility/utility/src"]):
 	#if not header_check("#", env, "):
 		#print "Problems. Build stopped"
@@ -101,8 +86,6 @@ else:
 	
 save_config(config)
 
-	
-
 if variants == 'all':
     variants = targets.keys()
 else:
@@ -123,6 +106,20 @@ for key in variants:
             env.Append(**{key: value})
         else:
             env[key] = value
+          
+	chk_conf = Configure(env, custom_tests = {"boost_ver_check" : boost_ver_check})
+	
+	if os.getenv("CXX"):
+		env['CXX'] = os.getenv("CXX")
+	else:
+		ret = compiler_check()
+		if ret:
+			env['CXX'] = ret
+		else:
+			Exit(1) 
+	
+	if not chk_conf.boost_ver_check():
+		Exit(1)
             
     Export('env')
     Export('config')
