@@ -116,4 +116,4 @@ def compiler_check():
         (retcode, _) = run_cmd_silently(["which", ac_prog]) 
         if retcode == 0:
             print "Using compiler name ", ac_prog
-            return ac_prog
+            return ac_prog  

@@ -9,6 +9,7 @@ Usage:
 """
 
 import os, pickle
+from utils import suffix_check, header_check, compiler_check
 
 def save_config(config):
     fd = open(".config", "w")
@@ -22,19 +23,34 @@ try:
     fd.close()
 
 except:
-    env = {}
+	env = {}
 
-    env['CXX'] = ARGUMENTS.get("c++", os.getenv("CXX"))
-    env['CPPPATH'] = filter(None, ARGUMENTS.get("includes", "").split(","))
-    env['LIBPATH'] = filter(None, ARGUMENTS.get("libpath", "").split(","))
+	if os.getenv("CXX"):
+		env['CXX'] = os.getenv("CXX")
+	else:
+		env['CXX'] = compiler_check()
 
-    boost_lib_suffix = ARGUMENTS.get("boost-suffix", "")
-    prefix = ARGUMENTS.get("prefix", ".")
+	env['CPPPATH'] = filter(None, ARGUMENTS.get("includes", "").split(","))
+	env['CPPPATH'].append("libutility")
+		
+	if not header_check("/home/artint/Projects/CPP/videocycle/fragmenter", env, env['CPPPATH'], ["", "/libutility/utility/src"]):
+	#if not header_check("#", env, "):
+		print "Problems. Build stopped"
+		Exit(1)
+	
+	
+	env['LIBPATH'] = filter(None, ARGUMENTS.get("libpath", "").split(","))
 
-    config = {'env': dict(filter(lambda _: _[1], env.items())), 
+	boost_lib_suffix = ARGUMENTS.get("boost-suffix", "")
+	if not boost_lib_suffix:
+		boost_lib_suffix = suffix_check(env)
+    
+	prefix = ARGUMENTS.get("prefix", ".")
+
+	config = {'env': dict(filter(lambda _: _[1], env.items())), 
               'prefix': prefix, 
               'boost_lib_suffix': boost_lib_suffix}
-    save_config(config)
+	save_config(config)
 
 if "printconf" in COMMAND_LINE_TARGETS or "configure" in COMMAND_LINE_TARGETS:
     import pprint
@@ -60,14 +76,20 @@ except KeyError:
     try:
         variants = config["build"]
     except KeyError:
-        variants = "debug"
+        variants = "release"
+
 if not config.get("build", "") == variants:
     config["build"] = variants
     save_config(config)
 
 if "prefix" in ARGUMENTS:
     config["prefix"] = ARGUMENTS["prefix"]
-    save_config(config)
+else:
+	config["prefix"] = "/usr/local/bin"
+	
+save_config(config)
+
+	
 
 if variants == 'all':
     variants = targets.keys()
@@ -89,6 +111,7 @@ for key in variants:
             env.Append(**{key: value})
         else:
             env[key] = value
+            
     Export('env')
     Export('config')
     SConscript('SConscript', build_dir = dir)

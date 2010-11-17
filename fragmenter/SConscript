@@ -1,18 +1,41 @@
 import os
+#from utils import lib_check
+
+def lib_check(env, lib_list):
+    print "Start checking necessary library files..."
+    for lib in lib_list:
+        if not chk_conf.CheckLib(lib_list):
+            print lib, " not found. Exiting"
+            return False
+            #Exit(1)
+            
+    print "All necessary libraries present"
+    return True
 
 Import('env')
 Import('config')
 
 def boost_lib(*name):
-    if "thread" in name and "date_time" not in name:
-        name.append("date_time")
-    return ["boost_" + n + config.get('boost_lib_suffix', '') for n in name]
+	if "thread" in name and "date_time" not in name:
+		name.append("date_time")
+   
+	lib_list = ["boost_" + n + config.get('boost_lib_suffix', '') for n in name]
+	if not lib_check(mp4env, lib_list):
+		Exit(1)
+		
+	return lib_list
 
-PROGNAME = 'mp4frag'
+mp4env = env.Clone()
+chk_conf = Configure(mp4env)
+mp4env.Append(LIBS = boost_lib(['program_options', "system"])
+mp4frag = mp4env.Program('mp4frag', [ 'mp4frag.cc', 'mp4.cc', 'base64.cc' ] )
 
-env.Program(PROGNAME, [ 'mp4frag.cc', 'mp4.cc', 'base64.cc' ], 
-            LIBS = boost_lib('program_options', 'system'))
-
-prefix = os.path.join(config.get('prefix', '.'), 'bin')
-env.Install(prefix, [PROGNAME])
-env.Alias('install', prefix)
+#if config.has_key("prefix") and config.get("target", "") == "install":
+if True:
+	print "Installing mp4dump to ", config["prefix"]
+	mp4env.Install(config["prefix"], mp4frag)
+	mp4env.Alias('install', config["prefix"])
+	
+#prefix = os.path.join(config.get('prefix', '.'), 'bin')
+#mp4env.Install(prefix, ['mp4dump'])
+#mp4env.Alias('install', prefix)
