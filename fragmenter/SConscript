@@ -8,9 +8,11 @@ def boost_lib(*name):
         name.append("date_time")
     return ["boost_" + n + config.get('boost_lib_suffix', '') for n in name]
 
-env.Program('mp4dump', [ 'mp4dump.cc', 'mp4.cc', 'base64.cc' ], 
-            LIBS = boost_lib('program_options'))
+PROGNAME = 'mp4frag'
+
+env.Program(PROGNAME, [ 'mp4frag.cc', 'mp4.cc', 'base64.cc' ], 
+            LIBS = boost_lib('program_options', 'system'))
 
 prefix = os.path.join(config.get('prefix', '.'), 'bin')
-env.Install(prefix, ['mp4dump'])
+env.Install(prefix, [PROGNAME])
 env.Alias('install', prefix)

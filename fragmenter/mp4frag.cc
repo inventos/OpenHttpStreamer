@@ -19,8 +19,11 @@
 #include "mp4.hh"
 #include "base64.hh"
 #include <boost/program_options.hpp>
+#include <boost/system/system_error.hpp>
+#include <boost/system/error_code.hpp>
 #include <sstream>
 #include <fstream>
+#include <stdexcept>
 #include <netinet/in.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -28,6 +31,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
+using namespace boost::system;
 
 namespace {
     std::string manifest_name = "manifest.f4m";
@@ -100,6 +105,10 @@ void close_fragment(fileinfo *finfo,
                     unsigned segment, unsigned fragment, 
                     const std::string& fragdata, 
                     double ts, double duration) {
+    if ( duration == 0 ) {
+        std::cerr << "Error writing fragment: duration == 0\n";
+        exit(1);
+    }
     if ( fragdata.size() ) {
 
         std::stringstream sdirname;
@@ -121,15 +130,16 @@ void close_fragment(fileinfo *finfo,
         prefix[7] = 't';
 
         std::ofstream out(filename.str().c_str());
-        std::cerr << filename.str() << std::endl;
-        assert (out);
+        if ( !out ) {
+            std::cerr << "Error opening " << filename << std::endl;
+            exit(1);
+        }
 
         out.write(prefix, 8);
         out.write(fragdata.c_str(), fragdata.size());
 
         out.close();
         finfo->fragments.push_back(Fragment(ts, duration));
-        assert(duration != 0);
     }
 }
 
@@ -246,12 +256,16 @@ fileinfo make_fragments(const std::string& filename) {
     }
 
     struct stat st;
-    assert ( stat(filename.c_str(), &st) != -1 );
+    if ( stat(filename.c_str(), &st) < 0 ) {
+        throw system_error(errno, get_system_category(), "stat");
+    }
     finfo.filesize = st.st_size;
 
     int fd = open(filename.c_str(), O_RDONLY);
     void *mapping = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED, fd, 0);
-    assert ( mapping != (void*)(-1) );
+    if ( mapping == (void*)-1 ) {
+        throw system_error(errno, get_system_category(), "mmap");
+    }
     finfo.mapping = (const char*)mapping;
 
     boost::shared_ptr<mp4::Context> ctxt(new mp4::Context);
@@ -323,7 +337,7 @@ void parse_options(int argc, char **argv) {
 
 
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv) try {
     parse_options(argc, argv);
 
     std::vector<fileinfo> fileinfo_list;
@@ -403,4 +417,7 @@ int main(int argc, char **argv) {
     }
     manifest_out << "</manifest>\n";
     manifest_out.close();
+}
+catch ( std::exception& e ) {
+    std::cerr << e.what() << "\n";
 }
