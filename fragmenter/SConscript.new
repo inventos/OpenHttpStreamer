@@ -1,0 +1,27 @@
+import os
+
+Import('env')
+Import('config')
+Import("chk_conf")
+
+def boost_lib(*name):
+    if "thread" in name and "date_time" not in name:
+        name.append("date_time")
+        
+    lib_list = ["boost_" + n + config.get('boost_lib_suffix', '') for n in name]
+    for lib in lib_list:
+    	print "Checking library ", lib, "..."
+    	if not chk_conf.CheckLib(lib_list):
+    		print lib, " not found. Exiting"
+    		Exit(1)
+    	print "Checking library ", lib, " OK"
+    		
+
+mp4env = env.Clone()
+mp4env.Append(LIBS = boost_lib('program_options'))
+
+mp4env.Program('mp4dump', [ 'mp4dump.cc', 'mp4.cc', 'base64.cc' ])
+
+#prefix = os.path.join(config.get('prefix', '.'), 'bin')
+#env.Install(prefix, ['mp4dump'])
+#env.Alias('install', prefix)
