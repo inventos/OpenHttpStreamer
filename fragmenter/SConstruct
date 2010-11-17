@@ -9,7 +9,7 @@ Usage:
 """
 
 import os, pickle
-from utils import suffix_check, header_check, compiler_check
+from utils import suffix_check, header_check, compiler_check, boost_ver_check
 
 def save_config(config):
     fd = open(".config", "w")
@@ -23,20 +23,32 @@ try:
     fd.close()
 
 except:
+
+	chk_env = Environment()
+	
+	
 	env = {}
 
 	if os.getenv("CXX"):
 		env['CXX'] = os.getenv("CXX")
 	else:
-		env['CXX'] = compiler_check()
+		ret = compiler_check()
+		if ret:
+			env['CXX'] = ret
+		else:
+			Exit(1) 
 
+	chk_conf = Configure(chk_env, custom_tests = {"boost_ver_check" : boost_ver_check})
+	if not chk_conf.boost_ver_check():
+		Exit(1)
+		
 	env['CPPPATH'] = filter(None, ARGUMENTS.get("includes", "").split(","))
 	env['CPPPATH'].append("libutility")
-		
-	if not header_check("/home/artint/Projects/CPP/videocycle/fragmenter", env, env['CPPPATH'], ["", "/libutility/utility/src"]):
+
+	#if not header_check(os.getpwd(), env, env['CPPPATH'], ["", "/libutility/utility/src"]):
 	#if not header_check("#", env, "):
-		print "Problems. Build stopped"
-		Exit(1)
+		#print "Problems. Build stopped"
+		#Exit(1)
 	
 	
 	env['LIBPATH'] = filter(None, ARGUMENTS.get("libpath", "").split(","))
@@ -114,4 +126,5 @@ for key in variants:
             
     Export('env')
     Export('config')
+    Export("chk_conf")
     SConscript('SConscript', build_dir = dir)

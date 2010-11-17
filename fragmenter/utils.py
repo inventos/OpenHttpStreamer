@@ -45,11 +45,18 @@ def suffix_check(env):
     #print "boost_lib_suffix is ", boost_lib_suffix
     return boost_lib_suffix
 
-def run_cmd_silently(command):
+def run_cmd_silently(command, stdout):
     #command = [arg[0], "-M", arg[1], dirname + "/" + name]
     #command = arg[0] + " -M " + arg[1] + " " + dirname + "/" + name
-    new_stdout = os.open("/dev/null", os.O_WRONLY, 0644)
-    new_stderr = os.open("/tmp/error.log", os.O_WRONLY | os.O_CREAT, 0644)
+    if stdout:
+        stdout_name = "/tmp/error.log"
+        stderr_name = "/dev/null"
+    else:
+        stdout_name = "/dev/null"
+        stderr_name = "/tmp/error.log"
+        
+    new_stdout = os.open(stdout_name, os.O_WRONLY | os.O_CREAT, 0644)
+    new_stderr = os.open(stderr_name, os.O_WRONLY | os.O_CREAT, 0644)
     
     subproc = subprocess.Popen(command, stdout = new_stdout, stderr = new_stderr)
     retcode = subproc.wait()
@@ -62,6 +69,7 @@ def run_cmd_silently(command):
 need_exit = False
 def header_check(path, env, extra_includes, src_pathes):
 
+    print path
     def visit(arg, dirname, names):
         global need_exit
         if need_exit:
@@ -111,9 +119,65 @@ def header_check(path, env, extra_includes, src_pathes):
     else: 
         return False
 
+def ver_to_str(int_ver):
+    return "%d.%d.%d" % (int_ver // 10000, int_ver // 100 % 100, int_ver % 100) 
+
 def compiler_check():
+    gcc_int_ver = 40300
     for ac_prog in ["g++", "c++", "gpp", "aCC", "CC", "cxx" "cc++"]:# too exotic cl.exe FCC KCC RCC xlC_r xlC:
-        (retcode, _) = run_cmd_silently(["which", ac_prog]) 
+        (retcode, _) = run_cmd_silently(["which", ac_prog], True) 
         if retcode == 0:
             print "Using compiler name ", ac_prog
-            return ac_prog  
+            break
+            
+    (ret, out) = run_cmd_silently([ac_prog, "--version"], True)
+    gcc_ver = re.search("\(GCC\) (\d*)\.(\d*)\.(\d*)", out)
+    rsl_gcc_ver = 0
+    if gcc_ver and len(gcc_ver.groups()) >= 3:
+        for i in range(3):
+            rsl_gcc_ver = rsl_gcc_ver * 100 + int(gcc_ver.group(i + 1))
+    
+    print rsl_gcc_ver, ":", gcc_int_ver
+    if rsl_gcc_ver < gcc_int_ver:
+        print "GCC version not satisfied. Need ", ver_to_str(gcc_int_ver), ", has ", ver_to_str(rsl_gcc_ver)
+        return None
+    else:
+        print "GCC version satisfies"
+        return ac_prog
+        
+def boost_ver_check(context):
+    boost_int_ver = 13900
+    ver_check = '''
+    #include <boost/version.hpp>
+    #include <iostream>  
+    int main(void)
+    {
+        std::cout << BOOST_VERSION; 
+    }
+    '''
+    
+    print "Checking for BoostVer..."
+    result = context.TryCompile(ver_check, '.cc')
+    if result == 0:
+        print "Can't find boost headers. Probably boost not installed."
+        context.Result(0)
+        return -1
+    
+    (result, out) = context.TryRun(ver_check, '.cc')
+    #print result, ":", out
+    if result == 0:
+        print "Unknown error."
+        context.Result(0)
+        return -1
+    
+    #http://www.boost.org/doc/libs/1_39_0/libs/config/doc/html/boost_config/boost_macro_reference.html#boost_config.boost_macro_reference.boost_informational_macros
+    
+    boost_present_ver = int(out) // 100000 * 10000 + int(out) % 10000
+    if boost_present_ver < boost_int_ver:
+        print "Boost version not satisfied. Need ", ver_to_str(boost_int_ver), ", has ", ver_to_str(boost_present_ver)
+        context.Result(0)
+        return False
+
+    print "Boost version satisfies"
+    context.Result(1)
+    return True
