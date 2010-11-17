@@ -24,7 +24,7 @@ namespace base64 {
         const char letters[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     }
 
-    void encode(std::streambuf *buf, const char *bytes, unsigned size) {
+    void encode(std::streambuf *buf, const char *bytes, size_t size) {
         unsigned rest = size % 3;
         const char *limit = bytes + size - rest;
         for ( const char *ptr = bytes; ptr < limit; ptr += 3 ) {
