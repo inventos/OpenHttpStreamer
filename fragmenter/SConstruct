@@ -116,6 +116,7 @@ for key in variants:
 		if ret:
 			env['CXX'] = ret
 		else:
+			print "Can't find compiler. Exiting"
 			Exit(1) 
 	
 	if not chk_conf.boost_ver_check():

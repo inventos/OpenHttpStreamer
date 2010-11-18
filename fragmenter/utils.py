@@ -128,21 +128,25 @@ def compiler_check():
     
     
     gcc_int_ver = 40300
-    for ac_prog in ["g++", "c++", "gpp", "aCC", "CC", "cxx" "cc++"]:# too exotic cl.exe FCC KCC RCC xlC_r xlC:
-        (retcode, _) = run_cmd_silently(["which", ac_prog], True) 
-        if retcode == 0:
-            print "Using compiler name ", ac_prog
-            break
+#    for ac_prog in ["g++", "c++", "gpp", "aCC", "CC", "cxx" "cc++"]:# too exotic cl.exe FCC KCC RCC xlC_r xlC:
+    ac_prog = "g++"
+    (retcode, _) = run_cmd_silently(["which", ac_prog], True) 
+    if retcode == 0:
+        print "Using compiler name ", ac_prog
+#            break
+    else:
+        return None
             
+    ac_prog = "g++"
     (ret, out) = run_cmd_silently([ac_prog, "--version"], True)
 
-    gcc_ver = re.search("\(GCC\) (\d*)\.(\d*)\.(\d*)", out)
+    gcc_ver = re.search("\(.*?\)\s*(\d*)\.(\d*)\.(\d*)", out)
     rsl_gcc_ver = 0
     if gcc_ver and len(gcc_ver.groups()) >= 3:
         for i in range(3):
             rsl_gcc_ver = rsl_gcc_ver * 100 + int(gcc_ver.group(i + 1))
     
-    print rsl_gcc_ver, ":", gcc_int_ver
+    #print rsl_gcc_ver, ":", gcc_int_ver
     if rsl_gcc_ver < gcc_int_ver:
         print "GCC version not satisfied. Need ", ver_to_str(gcc_int_ver), ", has ", ver_to_str(rsl_gcc_ver)
         return None
