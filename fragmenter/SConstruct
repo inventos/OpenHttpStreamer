@@ -9,7 +9,7 @@ Usage:
 """
 
 import os, pickle
-from utils import suffix_check, header_check, compiler_check, boost_ver_check
+from utils import suffix_check, compiler_check, boost_ver_check
 
 
 def save_config(config):
@@ -29,14 +29,9 @@ except:
 
 	env['CPPPATH'] = filter(None, ARGUMENTS.get("includes", "").split(","))
 	env['CPPPATH'].append("libutility")
-	
-	#if not header_check(os.getpwd(), env, env['CPPPATH'], ["", "/libutility/utility/src"]):
-	#if not header_check("#", env, "):
-		#print "Problems. Build stopped"
-		#Exit(1)
-	
-	
 	env['LIBPATH'] = filter(None, ARGUMENTS.get("libpath", "").split(","))
+	env["CPPDEFINES"] = {'BOOST_SP_USE_QUICK_ALLOCATOR': 1,}
+	env["CXXFLAGS"] = ['-Woverloaded-virtual', '-Wall', '-std=c++0x']
 
 	boost_lib_suffix = ARGUMENTS.get("boost-suffix", "")
 	if not boost_lib_suffix:
@@ -44,9 +39,27 @@ except:
     
 	prefix = ARGUMENTS.get("prefix", ".")
 
+	if os.getenv("CXX"):
+		env['CXX'] = os.getenv("CXX")
+	else:
+		ret = compiler_check()
+		if ret:
+			env['CXX'] = ret
+		else:
+			print "Can't find compiler. Exiting"
+			Exit(1) 
+
+	tmp_env = Environment()
+	tmp_env["CXX"] = env["CXX"]
+	chk_conf = Configure(tmp_env, custom_tests = {"boost_ver_check" : boost_ver_check})
+	if not chk_conf.boost_ver_check():
+		Exit(1)
+	tmp_env = chk_conf.Finish()
+	
 	config = {'env': dict(filter(lambda _: _[1], env.items())), 
               'prefix': prefix, 
               'boost_lib_suffix': boost_lib_suffix}
+	              
 	save_config(config)
 
 if "printconf" in COMMAND_LINE_TARGETS or "configure" in COMMAND_LINE_TARGETS:
@@ -96,33 +109,13 @@ target_prog = ARGUMENTS.get("program", "all")
 for key in variants:
     dir = "." + key
     env = targets[key]
-    env.Append(CPPDEFINES = {
-                   'BOOST_SP_USE_QUICK_ALLOCATOR': 1,
-               },
-               CXXFLAGS = ['-Woverloaded-virtual', '-Wall', '-std=c++0x'],
-              )
+    
     for key, value in config['env'].items():
         if type(value) == type([]):
             env.Append(**{key: value})
         else:
             env[key] = value
-          
-	chk_conf = Configure(env, custom_tests = {"boost_ver_check" : boost_ver_check})
-	
-	if os.getenv("CXX"):
-		env['CXX'] = os.getenv("CXX")
-	else:
-		ret = compiler_check()
-		if ret:
-			env['CXX'] = ret
-		else:
-			print "Can't find compiler. Exiting"
-			Exit(1) 
-	
-	if not chk_conf.boost_ver_check():
-		Exit(1)
             
     Export('env')
     Export('config')
-    Export("chk_conf")
     SConscript('SConscript', build_dir = dir)

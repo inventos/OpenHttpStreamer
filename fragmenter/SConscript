@@ -1,16 +1,31 @@
-import os
-#from utils import lib_check
+import os, pickle, os.path
 
-Import("chk_conf")
 def lib_check(env, lib_list):
-    print "Start checking necessary library files..."
-    for lib in lib_list:
-		if not chk_conf.CheckLib(lib):
-			print lib, " not found. Exiting"
-			return False
+	checked_libs = []
+	chk_lib_list = lib_list[:]
+	if os.path.exists(".used_libs"):
+		fd = open(".used_libs", "r")
+		checked_libs = pickle.load(fd)
+		fd.close()
+		for checked_lib in checked_libs:
+			if checked_lib in chk_lib_list:
+				chk_lib_list.remove(checked_lib)
+		
+	if chk_lib_list != []:
+		print "Start checking necessary library files..."
+		for lib in chk_lib_list:
+			if not chk_conf.CheckLib(lib):
+				print lib, " not found. Exiting"
+				return False
              
-    print "All necessary libraries present"
-    return True
+    	print "All necessary libraries present"
+    
+    	checked_libs.extend(chk_lib_list)
+    	fd = open(".used_libs", "w")
+    	pickle.dump(checked_libs, fd)
+    	fd.close()
+    
+	return True
 
 Import('env')
 Import('config')
@@ -25,16 +40,13 @@ def boost_lib(*name):
 		
 	return lib_list
 
+
+print COMMAND_LINE_TARGETS
 mp4env = env.Clone()
+chk_conf = Configure(mp4env) 
 mp4env.Append(LIBS = boost_lib('program_options', "system"))
 mp4frag = mp4env.Program('mp4frag', [ 'mp4frag.cc', 'mp4.cc', 'base64.cc' ] )
 
-#if config.has_key("prefix") and config.get("target", "") == "install":
-if True:
-	print "Installing mp4dump to ", config["prefix"]
-	mp4env.Install(config["prefix"], mp4frag)
-	mp4env.Alias('install', config["prefix"])
-	
-#prefix = os.path.join(config.get('prefix', '.'), 'bin')
-#mp4env.Install(prefix, ['mp4dump'])
-#mp4env.Alias('install', prefix)
+#print "Installing mp4dump to ", config["prefix"]
+mp4env.Install(config["prefix"], mp4frag)
+mp4env.Alias('install', config["prefix"])
