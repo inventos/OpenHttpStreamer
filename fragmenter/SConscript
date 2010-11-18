@@ -5,9 +5,9 @@ Import("chk_conf")
 def lib_check(env, lib_list):
     print "Start checking necessary library files..."
     for lib in lib_list:
-        if not chk_conf.CheckLib(lib_list):
-            print lib, " not found. Exiting"
-            return False
+		if not chk_conf.CheckLib(lib):
+			print lib, " not found. Exiting"
+			return False
              
     print "All necessary libraries present"
     return True
@@ -26,7 +26,7 @@ def boost_lib(*name):
 	return lib_list
 
 mp4env = env.Clone()
-mp4env.Append(LIBS = boost_lib(['program_options', "system"])
+mp4env.Append(LIBS = boost_lib('program_options', "system"))
 mp4frag = mp4env.Program('mp4frag', [ 'mp4frag.cc', 'mp4.cc', 'base64.cc' ] )
 
 #if config.has_key("prefix") and config.get("target", "") == "install":
