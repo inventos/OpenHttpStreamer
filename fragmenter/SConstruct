@@ -9,13 +9,28 @@ Usage:
 """
 
 import os, pickle
-from utils import suffix_check, compiler_check, boost_ver_check
+from utils import suffix_check, compiler_check, boost_ver_check, lib_check
 
 
 def save_config(config):
     fd = open(".config", "w")
     pickle.dump(config, fd)
     fd.close()
+
+LIBS_USED = ['program_options', "system"]
+SRC_LIST = [ 'mp4frag.cc', 'mp4.cc', 'base64.cc' ]
+
+#SetOption('clean', "-c")
+#if "clean" in COMMAND_LINE_TARGETS:
+#	SetOption('clean', "-c")
+	#Exit(0)
+	
+def boost_lib(name):
+	if "thread" in name and "date_time" not in name:
+		name.append("date_time")
+   
+	lib_list = ["boost_" + n + config.get('boost_lib_suffix', '') for n in name]
+	return lib_list
 
 try:
     assert "configure" not in COMMAND_LINE_TARGETS
@@ -49,23 +64,34 @@ except:
 			print "Can't find compiler. Exiting"
 			Exit(1) 
 
-	tmp_env = Environment()
-	tmp_env["CXX"] = env["CXX"]
-	chk_conf = Configure(tmp_env, custom_tests = {"boost_ver_check" : boost_ver_check})
-	if not chk_conf.boost_ver_check():
-		Exit(1)
-	tmp_env = chk_conf.Finish()
-	
+	#tmp_env = chk_conf.Finish()
+
+	checked_libs = []
 	config = {'env': dict(filter(lambda _: _[1], env.items())), 
               'prefix': prefix, 
-              'boost_lib_suffix': boost_lib_suffix}
-	              
-	save_config(config)
+              'boost_lib_suffix': boost_lib_suffix,
+              "checked_libs" : [],
+              "checked_boost_ver" : False
+              }
+
+tmp_env = Environment()
+tmp_env["CXX"] = config["env"]["CXX"]
+chk_conf = Configure(tmp_env, custom_tests = {"boost_ver_check" : boost_ver_check})
+if not config.get("checked_boost_ver", False) and not chk_conf.boost_ver_check():
+	Exit(1)
+config["checked_boost_ver"] = True
+
+if not lib_check(tmp_env, boost_lib(LIBS_USED), config["checked_libs"], chk_conf):
+	Exit(1)
+	
+save_config(config)             
+
+
 
 if "printconf" in COMMAND_LINE_TARGETS or "configure" in COMMAND_LINE_TARGETS:
-    import pprint
-    pprint.pprint(config)
-    Exit(0)
+	import pprint
+	pprint.pprint(config)
+	Exit(0)
 
 targets = {
     "release":   Environment(
@@ -104,8 +130,7 @@ if variants == 'all':
 else:
     variants = [x for x in variants.split(',') if x in targets]
 
-target_prog = ARGUMENTS.get("program", "all")
-
+path = os.getcwd()
 for key in variants:
     dir = "." + key
     env = targets[key]
@@ -115,7 +140,26 @@ for key in variants:
             env.Append(**{key: value})
         else:
             env[key] = value
-            
-    Export('env')
-    Export('config')
-    SConscript('SConscript', build_dir = dir)
+
+	#variant_dir = path + ("" if path[-1] == "/" else "/") + dir
+	#if not os.path.exists(variant_dir):
+	#	os.mkdir(variant_dir)
+	#os.chdir(variant_dir)
+	
+	#print os.getcwd()
+	
+	env.Append(LIBS = boost_lib(LIBS_USED))
+	VariantDir(dir, ".")
+	cur_src_list = [dir + "/" + src for src in SRC_LIST]
+	mp4frag = env.Program(dir + "/mp4frag", cur_src_list )
+	
+	env.Install(config["prefix"], mp4frag)
+	env.Alias('install', config["prefix"])
+	
+#	mp4env = env.Clone()
+#	mp4env.Append(LIBS = boost_lib(LIBS_USED))
+#	mp4frag = mp4env.Program('mp4frag', [ 'mp4frag.cc', 'mp4.cc', 'base64.cc' ] )
+
+
+#	mp4env.Install(config["prefix"], mp4frag)
+#	mp4env.Alias('install', config["prefix"])

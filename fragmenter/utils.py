@@ -1,4 +1,5 @@
-import os, re, os.path, sys, subprocess
+import os, re, os.path, sys, subprocess, pickle
+
 
 
 def suffix_check(env):
@@ -189,4 +190,25 @@ def boost_ver_check(context):
 
     print "Boost version satisfies"
     context.Result(1)
+    return True
+
+def lib_check(env, lib_list, checked_libs, chk_conf):
+    chk_lib_list = lib_list[:]
+
+    for checked_lib in checked_libs:
+        if checked_lib in chk_lib_list:
+            chk_lib_list.remove(checked_lib)
+    
+    if chk_lib_list != []:
+        print "Start checking necessary library files..."
+        for lib in chk_lib_list:
+            if not chk_conf.CheckLib(lib):
+                print lib, " not found. Exiting"
+                return False
+             
+        print "All necessary libraries present"
+    
+        checked_libs.extend(chk_lib_list)
+    
+    env = chk_conf.Finish()
     return True
