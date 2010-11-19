@@ -23,6 +23,8 @@ SRC_LIST = [ 'mp4frag.cc', 'mp4.cc', 'base64.cc' ]
 #SetOption('clean', "-c")
 #if "clean" in COMMAND_LINE_TARGETS:
 #	SetOption('clean', "-c")
+#	COMMAND_LINE_TARGETS.remove("clean")
+#	BUILD_TARGETS.remove("clean")
 	#Exit(0)
 	
 def boost_lib(name):
@@ -152,9 +154,15 @@ for key in variants:
 	VariantDir(dir, ".")
 	cur_src_list = [dir + "/" + src for src in SRC_LIST]
 	mp4frag = env.Program(dir + "/mp4frag", cur_src_list )
-	
-	env.Install(config["prefix"], mp4frag)
 	env.Alias('install', config["prefix"])
+	
+	
+
+	if len(variants) == 1 or (len(variants) > 1 and key == "release"):	
+		env.Install(config["prefix"], mp4frag)
+		
+	print "DEFAULT_TARGETS is", map(str, DEFAULT_TARGETS)
+	print "BUILD_TARGETS is", map(str, BUILD_TARGETS)
 	
 #	mp4env = env.Clone()
 #	mp4env.Append(LIBS = boost_lib(LIBS_USED))
