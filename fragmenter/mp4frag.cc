@@ -400,6 +400,9 @@ int main(int argc, char **argv) try {
     std::stringstream manifestname;
     manifestname << docroot << '/' << basedir << '/' << manifest_name;
     std::ofstream manifest_out(manifestname.str().c_str());
+    if ( !manifest_out ) {
+        throw std::runtime_error("Error opening " + manifestname.str());
+    }
     manifest_out << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
       "<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n"
       "<id>" << video_id << "</id>\n"
