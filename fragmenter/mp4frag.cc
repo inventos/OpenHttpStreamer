@@ -129,16 +129,22 @@ void close_fragment(fileinfo *finfo,
         prefix[6] = 'a';
         prefix[7] = 't';
 
-        std::ofstream out(filename.str().c_str());
-        if ( !out ) {
-            std::cerr << "Error opening " << filename << std::endl;
-            exit(1);
+        std::filebuf out;
+        if ( out.open(filename.str().c_str(), std::ios::out | std::ios::binary | std::ios::trunc) ) {
+            out.sputn(prefix, 8);
+            out.sputn(fragdata.c_str(), fragdata.size());
+            if ( !out.close() ) {
+                std::stringstream errmsg;
+                errmsg << "Error closing " << filename;
+                throw std::runtime_error(errmsg.str());
+            }
+        }
+        else {
+            std::stringstream errmsg;
+            errmsg << "Error opening " << filename;
+            throw std::runtime_error(errmsg.str());
         }
 
-        out.write(prefix, 8);
-        out.write(fragdata.c_str(), fragdata.size());
-
-        out.close();
         finfo->fragments.push_back(Fragment(ts, duration));
     }
 }
@@ -420,6 +426,11 @@ int main(int argc, char **argv) try {
     }
     manifest_out << "</manifest>\n";
     manifest_out.close();
+    if ( manifest_out.fail() || manifest_out.bad() ) {
+        std::stringstream errmsg;
+        errmsg << "Error writing " << manifestname;
+        throw std::runtime_error(errmsg.str());
+    }
 }
 catch ( std::exception& e ) {
     std::cerr << e.what() << "\n";
