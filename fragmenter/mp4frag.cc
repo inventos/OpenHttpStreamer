@@ -21,6 +21,7 @@
 #include <boost/program_options.hpp>
 #include <boost/system/system_error.hpp>
 #include <boost/system/error_code.hpp>
+#include <boost/foreach.hpp>
 #include <sstream>
 #include <fstream>
 #include <stdexcept>
@@ -160,7 +161,7 @@ void write_fragments(fileinfo *finfo, boost::shared_ptr<mp4::Context>& ctx, doub
 
     if ( ctx->has_video() ) {
         sb.sputc(9);
-        auto ve = ctx->videoextra();
+        const std::string& ve = ctx->videoextra();
         write24(sb, ve.size() + 5);
         write32(sb, 0);
         write24(sb, 0);
@@ -170,7 +171,7 @@ void write_fragments(fileinfo *finfo, boost::shared_ptr<mp4::Context>& ctx, doub
     }
     if ( ctx->has_audio() ) {
         sb.sputc(8);
-        auto ae = ctx->audioextra();
+        const std::string& ae = ctx->audioextra();
         write24(sb, ae.size() + 2);
         write32(sb, 0);
         write24(sb, 0);
@@ -196,7 +197,7 @@ void write_fragments(fileinfo *finfo, boost::shared_ptr<mp4::Context>& ctx, doub
 
                 if ( ctx->has_video() ) {
                     sb.sputc(9);
-                    auto ve = ctx->videoextra();
+                    const std::string& ve = ctx->videoextra();
                     write24(sb, ve.size() + 5);
                     write24(sb, unsigned(now * 1000)); sb.sputc( (unsigned(now * 1000) >> 24) & 0xff );
                     write24(sb, 0);
@@ -206,7 +207,7 @@ void write_fragments(fileinfo *finfo, boost::shared_ptr<mp4::Context>& ctx, doub
                 }
                 if ( ctx->has_audio() ) {
                     sb.sputc(8);
-                    auto ae = ctx->audioextra();
+                    const std::string& ae = ctx->audioextra();
                     write24(sb, ae.size() + 2);
                     write24(sb, unsigned(now * 1000)); sb.sputc( (unsigned(now * 1000) >> 24) & 0xff );
                     write24(sb, 0);
@@ -417,11 +418,11 @@ int main(int argc, char **argv) try {
       "<bootstrapInfo profile=\"named\" id=\"" << info << "\">";
     base64::encode(manifest_out.rdbuf(), bootstrapinfo.c_str(), bootstrapinfo.size());
     manifest_out << "</bootstrapinfo>\n";
-    for ( auto fi = fileinfo_list.cbegin(), e = fileinfo_list.cend(); fi != e; ++fi ) {
-        std::cerr << fi->filesize << ' ' << fi->duration << '\n';
-      manifest_out <<  
-          "<media streamId=\"" << video_id << "\" url=\"" << fi->dirname << "/\" bootstrapinfoId=\"" << info << "\" "
-          "bitrate=\"" << int(fi->filesize / fi->duration / 10000 * 8) * 10000 << "\" "
+    BOOST_FOREACH( const fileinfo& fi, fileinfo_list ) {
+        std::cerr << fi.filesize << ' ' << fi.duration << '\n';
+        manifest_out <<  
+          "<media streamId=\"" << video_id << "\" url=\"" << fi.dirname << "/\" bootstrapinfoId=\"" << info << "\" "
+          "bitrate=\"" << int(fi.filesize / fi.duration / 10000 * 8) * 10000 << "\" "
           " />\n";
     }
     manifest_out << "</manifest>\n";
