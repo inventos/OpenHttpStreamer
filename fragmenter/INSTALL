@@ -1,0 +1,45 @@
+Prerequesties.
+
+For building all the prerequesties use documentation followed by specified
+product.
+
+- scons. SCons is software construction tool, or make tool--that is, 
+a software utility for building software. Used for building the whole
+project. Can be downloaded here -- http://scons.org/download.php, or 
+installed from packages in your system. Version 1.3 or better will
+satisfy.
+
+- g++. GNU C++ compiler. Can be acquired here -- http://gcc.gnu.org, 
+or installed from packages in your system. The videocycle project uses
+C++0x C++ dialect now, so compiler should be compliant with new standard.
+gcc version 4.3.0 or better will satisfy. 
+
+- boost. Boost is a collection of libraries and headers to extend C++
+functionality. Can be downloaded here - http://www.boost.org/users/download/,
+or installed from packages in your system. Version 1.39 or better will
+satisfy.
+
+Configuring.
+To make explicit configure run "scons configure" in project root dir. Configure
+checks necessary dependencies and reports which dependencies were not 
+satisfied and why. Calling this explicitly as usual is not necessary - configure
+script is called automatically.
+
+Building.
+To build project run "scons". The building script implicitly calls configure, 
+if configure is not present already. The "release" build configuration is 
+used as default. To specify it explicitly call "scons build=<config name>" 
+where <config name> is "debug", "release" or "all" without quotation marks. 
+To clean previously built call scons --clean. The "release" build 
+configuration is cleaned as default. To clean another build configuration 
+specify it explicitly as described above. If necessary headers or libraries 
+are not in standard include or lib path you should specify it like 
+"includes=<path1>,<path2> ..." for non-typical include path and 
+"libpath=<path1>,<path2> ... " for non-typical library path. The script
+tries to decide which boost library suffix is present in system. If there is
+a configure error specify it implicitly using "boost-suffix=<boost-suffix>".
+
+Installing.
+To install the result tool run "scons install". It installs result executable
+into /usr/local/bin directory. To explicitly specify path to install set 
+"prefix=<path_prefix>"
