@@ -1,10 +1,5 @@
-.config
-.debug/
-.release/
-.sconsign.dblite
-libutility/
+.*
 tags
-.sconf_temp/
 config.log
-utils.pyc
-
+*.pyc
+*~
