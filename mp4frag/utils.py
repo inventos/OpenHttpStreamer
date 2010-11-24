@@ -31,19 +31,24 @@ def suffix_check(env):
             file_list = os.listdir(libdir)
             for name in file_list:
                 boost_fnd = boost_mask.search(name)
-                if boost_fnd and not found or (found and len(boost_lib_suffix) > len(boost_fnd.group(1))):
-                    #aghrrr, I love python
-                    if boost_fnd.group(1):
-                        boost_lib_suffix = boost_fnd.group(1)
-                    else:
-                        boost_lib_suffix = ""
-                    found = True
-                    break
+                if boost_fnd:
+                    #print name, ":", not boost_fnd.group(1)
+                    if not found or (found and (not boost_fnd.group(1) or len(boost_lib_suffix) > len(boost_fnd.group(1)))):
+                        #aghrrr, I love python
+                        if boost_fnd.group(1):
+                            boost_lib_suffix = boost_fnd.group(1)
+                        else:
+                            boost_lib_suffix = ""
+                        found = True
+#break
             
             if found:
                 break
                     
     #print "boost_lib_suffix is ", boost_lib_suffix
+    if not found:
+        print "Boost suffix not determined"
+        return -1
     return boost_lib_suffix
 
 def run_cmd_silently(command, stdout):
@@ -132,7 +137,7 @@ def compiler_check(param):
 #    for ac_prog in ["g++", "c++", "gpp", "aCC", "CC", "cxx" "cc++"]:# too exotic cl.exe FCC KCC RCC xlC_r xlC:
     if not param:
         ac_prog = "g++"
-    else
+    else:
         ac_prog = param
     (retcode, _) = run_cmd_silently(["which", ac_prog], True) 
     if retcode == 0:
