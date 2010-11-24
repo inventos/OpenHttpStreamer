@@ -1,7 +1,11 @@
 
-
 Mp4frag project is a free implementation of Adobe HTTP Dynamic Streaming for VOD (http://www.adobe.com/products/httpdynamicstreaming/)
 
 mp4frag util is static fragmenter.
+
+Documentation coming soon...
+
+For building instruction see INSTALL.
+
 
 
