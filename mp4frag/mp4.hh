@@ -21,6 +21,7 @@
 #ifndef __mp4_hh__c6051ba6_1c2a_4b5d_b3ec_a4d3401a9df3
 #define __mp4_hh__c6051ba6_1c2a_4b5d_b3ec_a4d3401a9df3
 
+#include <stdint.h>
 #include <boost/shared_ptr.hpp>
 #include <boost/enable_shared_from_this.hpp>
 #include <vector>
