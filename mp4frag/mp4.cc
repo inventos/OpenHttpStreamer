@@ -1,20 +1,22 @@
 /*
  * 
  * copyright (c) 2010 ZAO Inventos (inventos.ru)
+ * copyright (c) 2010 jk@inventos.ru
+ * copyright (c) 2010 kuzalex@inventos.ru
+ * copyright (c) 2010 artint@inventos.ru
  *
- * This file is part of VideoCycle.
+ * This file is part of mp4frag.
  *
- * VideoCycle is free software; you can redistribute it and/or
+ * mp4grag is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
  * version 2.1 of the License, or (at your option) any later version.
  *
- * VideoCycle is distributed in the hope that it will be useful,
+ * mp4frag is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * Lesser General Public License for more details.
  */
-
 #include "mp4.hh"
 #include <boost/foreach.hpp>
 #include <boost/make_shared.hpp>
