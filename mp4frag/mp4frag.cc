@@ -152,6 +152,50 @@ void close_fragment(fileinfo *finfo,
     }
 }
 
+
+void write_video_packet(std::streambuf *sb, bool key, bool sequence_header, uint32_t comp_offset,
+                        uint32_t timestamp,
+                        const char *packetdata, uint32_t packetsize) {
+    sb->sputc(9);
+    write24(*sb, packetsize + 5);
+    write24(*sb, timestamp & 0xffffff);
+    sb->sputc((timestamp >> 24) & 0xff);
+    write24(*sb, 0);
+    sb->sputc( ((key || sequence_header) ? 0x10 : 0x20) | 7 );
+    sb->sputc( sequence_header ? 0 : 1 );
+    write24(*sb, comp_offset);
+    sb->sputn(packetdata, packetsize);
+    write32(*sb, packetsize + 5 + 11);
+}
+
+
+void write_audio_packet(std::streambuf *sb, bool sequence_header,
+                        uint32_t timestamp,
+                        const char *packetdata, uint32_t packetsize) {
+    sb->sputc(8);
+    write24(*sb, packetsize + 2);
+    write24(*sb, timestamp & 0xffffff);
+    sb->sputc((timestamp >> 24) & 0xff);
+    write24(*sb, 0);
+    sb->sputc(0xaf);
+    sb->sputc( sequence_header ? 0 : 1 );
+    sb->sputn(packetdata, packetsize);
+    write32(*sb, packetsize + 2 + 11);
+}
+
+
+void write_fragment_prefix(std::streambuf *sb, boost::shared_ptr<mp4::Context>& ctx, uint32_t ts) {
+    if ( ctx->has_video() ) {
+        write_video_packet(sb, true, true, 0, ts, 
+                           ctx->videoextra().c_str(), ctx->videoextra().size());
+    }
+    if ( ctx->has_audio() ) {
+        write_audio_packet(sb, true, ts, ctx->audioextra().c_str(), ctx->audioextra().size());
+    }
+}
+
+
+
 void write_fragments(fileinfo *finfo, boost::shared_ptr<mp4::Context>& ctx, double timelimit) {
     unsigned segment = 1;
     unsigned fragment = 1;
@@ -161,26 +205,7 @@ void write_fragments(fileinfo *finfo, boost::shared_ptr<mp4::Context>& ctx, doub
     unsigned nsample = 0;
     std::stringbuf sb;
 
-    if ( ctx->has_video() ) {
-        sb.sputc(9);
-        const std::string& ve = ctx->videoextra();
-        write24(sb, ve.size() + 5);
-        write32(sb, 0);
-        write24(sb, 0);
-        sb.sputn("\x17\0\0\0\0", 5);
-        sb.sputn(ve.c_str(), ve.size());
-        write32(sb, ve.size() + 16);
-    }
-    if ( ctx->has_audio() ) {
-        sb.sputc(8);
-        const std::string& ae = ctx->audioextra();
-        write24(sb, ae.size() + 2);
-        write32(sb, 0);
-        write24(sb, 0);
-        sb.sputn("\xaf\0", 2);
-        sb.sputn(ae.c_str(), ae.size());
-        write32(sb, ae.size() + 13);
-    }
+    write_fragment_prefix(&sb, ctx, 0);
 
     while ( nsample < ctx->nsamples() ) {
         std::cerr << "nsample=" << nsample << ", ";
@@ -188,7 +213,6 @@ void write_fragments(fileinfo *finfo, boost::shared_ptr<mp4::Context>& ctx, doub
         now = si->timestamp();
         std::cerr << "timestamp=" << now << ", ";
 
-        unsigned total = 11 + si->_sample_size;
         if ( si->_video ) {
             if ( si->_keyframe && now >= limit_ts ) {
                 std::cerr << "close: " << fragment << "\n";
@@ -196,56 +220,14 @@ void write_fragments(fileinfo *finfo, boost::shared_ptr<mp4::Context>& ctx, doub
                 old_ts = now;
                 limit_ts = now + timelimit;
                 sb.str(std::string());
-
-                if ( ctx->has_video() ) {
-                    sb.sputc(9);
-                    const std::string& ve = ctx->videoextra();
-                    write24(sb, ve.size() + 5);
-                    write24(sb, unsigned(now * 1000)); sb.sputc( (unsigned(now * 1000) >> 24) & 0xff );
-                    write24(sb, 0);
-                    sb.sputn("\x17\0\0\0\0", 5);
-                    sb.sputn(ve.c_str(), ve.size());
-                    write32(sb, ve.size() + 16);
-                }
-                if ( ctx->has_audio() ) {
-                    sb.sputc(8);
-                    const std::string& ae = ctx->audioextra();
-                    write24(sb, ae.size() + 2);
-                    write24(sb, unsigned(now * 1000)); sb.sputc( (unsigned(now * 1000) >> 24) & 0xff );
-                    write24(sb, 0);
-                    sb.sputn("\xaf\0", 2);
-                    sb.sputn(ae.c_str(), ae.size());
-                    write32(sb, ae.size() + 13);
-                }
-
+                write_fragment_prefix(&sb, ctx, now * 1000);
             }
-            sb.sputc(9);
-            write24(sb, si->_sample_size + 5);
-            total += 5;
+            write_video_packet(&sb, si->_keyframe, false, si->_composition_offset * 1000.0 / si->_timescale,
+                               now * 1000, finfo->mapping + si->_offset, si->_sample_size);
         }
         else {
-            sb.sputc(8);
-            write24(sb, si->_sample_size + 2);
-            total += 2;
+            write_audio_packet(&sb, false, now * 1000, finfo->mapping + si->_offset, si->_sample_size);
         }
-        unsigned uts = now * 1000;
-        write24(sb, uts); sb.sputc( (uts >> 24) & 0xff );
-        std::cerr << "timestamp_24=" << std::hex << uts << "\n";
-        write24(sb, 0);
-        if ( si->_video ) {
-            if ( si->_keyframe ) {
-                sb.sputn("\x17\x1", 2);
-            }
-            else {
-                sb.sputn("\x27\x1", 2);
-            }
-            write24(sb, si->_composition_offset * 1000.0 / si->_timescale); // composition time offset
-        }
-        else {
-            sb.sputn("\xaf\x1", 2);
-        }
-        sb.sputn(finfo->mapping + si->_offset, si->_sample_size);
-        write32(sb, total);
     }
     close_fragment(finfo, segment, fragment, sb.str(), now, ctx->duration() - now);
 }
@@ -271,9 +253,12 @@ fileinfo make_fragments(const std::string& filename) {
     finfo.filesize = st.st_size;
 
     int fd = open(filename.c_str(), O_RDONLY);
+    if ( fd == -1 ) {
+        throw system_error(errno, get_system_category(), "opening " + filename);
+    }
     void *mapping = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED, fd, 0);
     if ( mapping == (void*)-1 ) {
-        throw system_error(errno, get_system_category(), "mmap");
+        throw system_error(errno, get_system_category(), "mmaping " + filename);
     }
     finfo.mapping = (const char*)mapping;
 
