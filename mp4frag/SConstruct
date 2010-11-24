@@ -171,7 +171,7 @@ for key in variants:
 	
 	#print os.getcwd()
 	
-	env.Append(LIBS = boost_lib(LIBS_USED))
+	env.AppendUnique(LIBS = boost_lib(LIBS_USED))
 	VariantDir(dir, ".")
 	cur_src_list = [dir + "/" + src for src in SRC_LIST]
 	mp4frag = env.Program(dir + "/mp4frag", cur_src_list )
