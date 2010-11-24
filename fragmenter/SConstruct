@@ -48,7 +48,7 @@ except:
 	env['CPPPATH'].append("libutility")
 	env['LIBPATH'] = filter(None, ARGUMENTS.get("libpath", "").split(","))
 	env["CPPDEFINES"] = {'BOOST_SP_USE_QUICK_ALLOCATOR': 1,}
-	env["CXXFLAGS"] = ['-Woverloaded-virtual', '-Wall', '-std=c++0x']
+	env["CXXFLAGS"] = ['-Woverloaded-virtual', '-Wall']
 
 	boost_lib_suffix = ARGUMENTS.get("boost-suffix", "")
 	if not boost_lib_suffix:

@@ -471,7 +471,8 @@ namespace mp4 {
                     MP4_CHECK ( end - data >= 86 + 8 );
                     uint32_t cab_size = UINT32(data + 86);
 
-                    std::swap(_ctx->_video->_extradata, std::vector<char>(data + 94, data + 94 + cab_size - 8));
+                    std::vector<char> tmp(data + 94, data + 94 + cab_size - 8);
+                    std::swap(_ctx->_video->_extradata, tmp);
 
                     // std::cerr << "avcC[0]=" << std::hex << unsigned(data[94]) << " avcC[4]=" << unsigned(data[98]) << std::dec << std::endl;
                     
@@ -559,7 +560,7 @@ namespace mp4 {
         typedef std::pair<uint64_t,uint64_t> stts_entry_type;
         unsigned keyframe_index = 0;
 
-        decltype(track->_samples_to_chunk.begin()) chunk_run = track->_samples_to_chunk.begin();
+        std::vector<Track::SampleToChunk>::const_iterator chunk_run = track->_samples_to_chunk.begin();
 
         uint32_t samples_per_chunk = chunk_run->_samples_per_chunk;
         uint32_t current_chunk = 0;
