@@ -182,8 +182,8 @@ for key in variants:
 	if len(variants) == 1 or (len(variants) > 1 and key == "release"):	
 		env.Install(config["prefix"], mp4frag)
 		
-	print "DEFAULT_TARGETS is", map(str, DEFAULT_TARGETS)
-	print "BUILD_TARGETS is", map(str, BUILD_TARGETS)
+#	print "DEFAULT_TARGETS is", map(str, DEFAULT_TARGETS)
+#	print "BUILD_TARGETS is", map(str, BUILD_TARGETS)
 	
 #	mp4env = env.Clone()
 #	mp4env.Append(LIBS = boost_lib(LIBS_USED))
