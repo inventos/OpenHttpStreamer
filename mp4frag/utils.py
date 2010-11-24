@@ -31,19 +31,24 @@ def suffix_check(env):
             file_list = os.listdir(libdir)
             for name in file_list:
                 boost_fnd = boost_mask.search(name)
-                if boost_fnd and not found or (found and len(boost_lib_suffix) > len(boost_fnd.group(1))):
-                    #aghrrr, I love python
-                    if boost_fnd.group(1):
-                        boost_lib_suffix = boost_fnd.group(1)
-                    else:
-                        boost_lib_suffix = ""
-                    found = True
-                    break
+                if boost_fnd:
+                    #print name, ":", not boost_fnd.group(1)
+                    if not found or (found and (not boost_fnd.group(1) or len(boost_lib_suffix) > len(boost_fnd.group(1)))):
+                        #aghrrr, I love python
+                        if boost_fnd.group(1):
+                            boost_lib_suffix = boost_fnd.group(1)
+                        else:
+                            boost_lib_suffix = ""
+                        found = True
+#break
             
             if found:
                 break
                     
     #print "boost_lib_suffix is ", boost_lib_suffix
+    if not found:
+        print "Boost suffix not determined"
+        return -1
     return boost_lib_suffix
 
 def run_cmd_silently(command, stdout):
@@ -123,14 +128,17 @@ def header_check(path, env, extra_includes, src_pathes):
 def ver_to_str(int_ver):
     return "%d.%d.%d" % (int_ver // 10000, int_ver // 100 % 100, int_ver % 100) 
 
-def compiler_check():
+def compiler_check(param):
     
     #Configure.CheckCXX()
     
     
-    gcc_int_ver = 40300
+    gcc_int_ver = 40100
 #    for ac_prog in ["g++", "c++", "gpp", "aCC", "CC", "cxx" "cc++"]:# too exotic cl.exe FCC KCC RCC xlC_r xlC:
-    ac_prog = "g++"
+    if not param:
+        ac_prog = "g++"
+    else:
+        ac_prog = param
     (retcode, _) = run_cmd_silently(["which", ac_prog], True) 
     if retcode == 0:
         print "Using compiler name ", ac_prog
