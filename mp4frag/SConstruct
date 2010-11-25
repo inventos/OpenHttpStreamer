@@ -9,7 +9,7 @@ Usage:
 """
 
 import os, pickle
-from utils import suffix_check, compiler_check, boost_ver_check, lib_check
+from utils import suffix_check, compiler_check, boost_ver_check, lib_check, checkEndian
 
 
 def save_config(config):
@@ -79,7 +79,7 @@ except:
               'boost_lib_suffix': boost_lib_suffix,
               "checked_libs" : [],
               "checked_boost_ver" : False,
-#              "checked_endian" : False
+              "checked_endian" : False
               }
 
 
@@ -92,20 +92,18 @@ for key, value in config['env'].items():
     else:
         tmp_env[key] = value
 
-chk_conf = Configure(tmp_env, custom_tests = {"boost_ver_check" : boost_ver_check})
+chk_conf = Configure(tmp_env, custom_tests = {"boost_ver_check" : boost_ver_check, "checkEndian" :  checkEndian})
 if not config.get("checked_boost_ver", False) and not chk_conf.boost_ver_check():
 	Exit(1)
 config["checked_boost_ver"] = True
 
-#endian = conf.checkEndian() # look at AC_C_BIGENDIAN on this wiki
-#config["checked_endian"] = True
-#if endian == "little":
-#	
-#elif endian == "big":
-#	dict["PLATFORM_ENDIAN"] = "PLATFORM_BIG_ENDIAN"
-
-
-
+endian = chk_conf.checkEndian() # look at AC_C_BIGENDIAN on this wiki
+config["checked_endian"] = True
+if endian == "little":
+	config["env"]["CPPDEFINES"].update({'LITTLE_ENDIAN': 1})	
+elif endian == "big":
+	config["env"]["CPPDEFINES"].update({'BIG_ENDIAN': 1})
+	
 if not lib_check(tmp_env, boost_lib(LIBS_USED), config["checked_libs"], chk_conf):
 	Exit(1)
 	
@@ -159,11 +157,12 @@ for key in variants:
     env = targets[key]
     
     for key, value in config['env'].items():
-        if type(value) == type([]):
+        if type(value) == type([]) or type(value) == type({}):
             env.Append(**{key: value})
         else:
             env[key] = value
 
+	print env["CPPDEFINES"]
 	#variant_dir = path + ("" if path[-1] == "/" else "/") + dir
 	#if not os.path.exists(variant_dir):
 	#	os.mkdir(variant_dir)
