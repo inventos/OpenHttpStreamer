@@ -109,8 +109,7 @@ void close_fragment(fileinfo *finfo,
                     const std::string& fragdata, 
                     double ts, double duration) {
     if ( duration == 0 ) {
-        std::cerr << "Error writing fragment: duration == 0\n";
-        exit(1);
+        throw std::runtime_error("Error writing fragment: duration == 0");
     }
     if ( fragdata.size() ) {
 
@@ -208,14 +207,11 @@ void write_fragments(fileinfo *finfo, boost::shared_ptr<mp4::Context>& ctx, doub
     write_fragment_prefix(&sb, ctx, 0);
 
     while ( nsample < ctx->nsamples() ) {
-        std::cerr << "nsample=" << nsample << ", ";
         mp4::SampleInfo *si = ctx->get_sample(nsample++);
         now = si->timestamp();
-        std::cerr << "timestamp=" << now << ", ";
 
         if ( si->_video ) {
             if ( si->_keyframe && now >= limit_ts ) {
-                std::cerr << "close: " << fragment << "\n";
                 close_fragment(finfo, segment, fragment++, sb.str(), old_ts, now - old_ts);
                 old_ts = now;
                 limit_ts = now + timelimit;
@@ -373,7 +369,6 @@ int main(int argc, char **argv) try {
     write24(afrt, 0); // flags
     write32(afrt, 1000); // timescale
     afrt.sputc(0); // qualityentrycount
-    std::cerr << total_fragments << " fragments\n";
     write32(afrt, total_fragments); // fragmentrunentrycount
     for ( unsigned ifragment = 0; ifragment < total_fragments; ++ifragment ) {
         write32(afrt, ifragment + 1);
@@ -406,7 +401,6 @@ int main(int argc, char **argv) try {
     base64::encode(manifest_out.rdbuf(), bootstrapinfo.c_str(), bootstrapinfo.size());
     manifest_out << "</bootstrapinfo>\n";
     BOOST_FOREACH( const fileinfo& fi, fileinfo_list ) {
-        std::cerr << fi.filesize << ' ' << fi.duration << '\n';
         manifest_out <<  
           "<media streamId=\"" << video_id << "\" url=\"" << fi.dirname << "/\" bootstrapinfoId=\"" << info << "\" "
           "bitrate=\"" << int(fi.filesize / fi.duration / 10000 * 8) * 10000 << "\" "
