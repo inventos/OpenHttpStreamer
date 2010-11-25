@@ -200,6 +200,30 @@ def boost_ver_check(context):
     context.Result(1)
     return True
 
+#code used from AutoconfRecepies : http://scons.org/wiki/AutoconfRecipes
+# This code was tested on Intel, AMD 64, and Cell (Playstation 3)
+# Python already knows what endian it is, just ask Python.
+def checkEndian(context):
+    context.Message("checking endianess ... ")
+    import struct
+
+    array = struct.pack('cccc', '\x01', '\x02', '\x03', '\x04')
+
+    i = struct.unpack('i', array)
+
+    # Little Endian
+    if i == struct.unpack('<i', array):
+        context.Result("little")
+        return "little"
+
+    # Big Endian
+    elif i == struct.unpack('>i', array):
+        context.Result("big")
+        return "big"
+
+    context.Result("unknown")
+    return "unknown"
+
 def lib_check(env, lib_list, checked_libs, chk_conf):
     chk_lib_list = lib_list[:]
 
