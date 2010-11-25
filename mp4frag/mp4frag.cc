@@ -84,11 +84,44 @@ void writebox(std::streambuf& buf, const char *name, const std::string& box) {
 
 
 
-struct Fragment {
-    double _ts;
-    double _dur;
-    Fragment(unsigned ts, unsigned dur) : _ts(ts), _dur(dur) {}
+struct SampleEntry {
+    off_t _offset;
+    uint32_t _size;
+    uint32_t _timestamp;
+    uint32_t _composition_offset;
+    off_t offset() const { return _offset; }
+    uint32_t size() const { return _size; }
+    uint32_t timestamp() const { return _timestamp; }
+    uint32_t composition_offset() const { return _composition_offset & 0xFFFFFF; }
+    bool video() const { return _composition_offset & 0x80000000; }
+    bool keyframe() const { return _composition_offset & 0x40000000; }
+
+    SampleEntry(off_t o, uint32_t s, uint32_t ts, uint32_t comp, bool isvideo, bool iskey = false) {
+        _offset = o;
+        _size = s;
+        _timestamp = ts;
+        _composition_offset = comp & 0xFFFFFF;
+        if ( isvideo ) {
+           _composition_offset |= 0x80000000;
+           if ( iskey ) {
+               _composition_offset |= 0x40000000;
+           }
+        }
+    }
 };
+
+
+struct Fragment {
+    double _duration;
+    uint32_t _totalsize;
+    std::vector<SampleEntry> _samples;
+    Fragment() : _duration(0), _totalsize(0) {}
+    uint32_t timestamp_ms() const { return _samples[0].timestamp(); }
+    double duration() const { return _duration; }
+};
+
+
+
 
 
 struct fileinfo {
@@ -100,56 +133,40 @@ struct fileinfo {
     const char *mapping;
     off_t filesize;
     std::vector<Fragment> fragments;
+    std::string videoextra, audioextra;
 };
 
 
 
-void close_fragment(fileinfo *finfo, 
-                    unsigned segment, unsigned fragment, 
-                    const std::string& fragdata, 
-                    double ts, double duration) {
-    if ( duration == 0 ) {
-        throw std::runtime_error("Error writing fragment: duration == 0");
-    }
-    if ( fragdata.size() ) {
+void generate_fragments(std::vector<Fragment>& fragments, boost::shared_ptr<mp4::Context>& ctx, double timestep) {
+    double limit_ts = timestep;
+    double now;
+    unsigned nsample = 0;
+    fragments.clear();
 
-        std::stringstream sdirname;
-        sdirname << docroot << '/' << basedir << '/' << finfo->dirname;
-        std::string dirname(sdirname.str());
-        mkdir(dirname.c_str(), 0755);
-        
-        std::stringstream filename;
-        filename << dirname << "/Seg" << segment << "-Frag" << fragment;
-        size_t fragment_size = fragdata.size() + 8;
-        char prefix[8];
-        prefix[0] = (fragment_size >> 24) & 0xFF;
-        prefix[1] = (fragment_size >> 16) & 0xFF;
-        prefix[2] = (fragment_size >> 8) & 0xFF;
-        prefix[3] = fragment_size & 0xFF;
-        prefix[4] = 'm';
-        prefix[5] = 'd';
-        prefix[6] = 'a';
-        prefix[7] = 't';
+    fragments.push_back(Fragment());
+    std::vector<SampleEntry> *samplelist = &(fragments.back()._samples);
 
-        std::filebuf out;
-        if ( out.open(filename.str().c_str(), std::ios::out | std::ios::binary | std::ios::trunc) ) {
-            out.sputn(prefix, 8);
-            out.sputn(fragdata.c_str(), fragdata.size());
-            if ( !out.close() ) {
-                std::stringstream errmsg;
-                errmsg << "Error closing " << filename;
-                throw std::runtime_error(errmsg.str());
-            }
+    while ( nsample < ctx->nsamples() ) {
+        mp4::SampleInfo *si = ctx->get_sample(nsample++);
+        now = si->timestamp();
+
+        if ( si->_video && si->_keyframe && now >= limit_ts ) {
+            fragments.push_back(Fragment());
+            samplelist = &(fragments.back()._samples);
+            limit_ts = now + timestep;
         }
-        else {
-            std::stringstream errmsg;
-            errmsg << "Error opening " << filename;
-            throw std::runtime_error(errmsg.str());
-        }
-
-        finfo->fragments.push_back(Fragment(ts, duration));
+        samplelist->push_back(SampleEntry(si->_offset, si->_sample_size,
+                                          now * 1000.0,
+                                          si->_composition_offset * 1000.0 / si->_timescale,
+                                          si->_video,
+                                          si->_keyframe));
+        fragments.back()._duration += now;
+        fragments.back()._totalsize += si->_sample_size + 11 + (si->_video ? 5 : 2) + 4;
     }
 }
+
+
 
 
 void write_video_packet(std::streambuf *sb, bool key, bool sequence_header, uint32_t comp_offset,
@@ -183,49 +200,17 @@ void write_audio_packet(std::streambuf *sb, bool sequence_header,
 }
 
 
-void write_fragment_prefix(std::streambuf *sb, boost::shared_ptr<mp4::Context>& ctx, uint32_t ts) {
-    if ( ctx->has_video() ) {
+void write_fragment_prefix(std::streambuf *sb,
+                           const std::string& videoextra,
+                           const std::string& audioextra,
+                           uint32_t ts) {
+    if ( videoextra.size() ) {
         write_video_packet(sb, true, true, 0, ts, 
-                           ctx->videoextra().c_str(), ctx->videoextra().size());
+                           videoextra.c_str(), videoextra.size());
     }
-    if ( ctx->has_audio() ) {
-        write_audio_packet(sb, true, ts, ctx->audioextra().c_str(), ctx->audioextra().size());
+    if ( audioextra.size() ) {
+        write_audio_packet(sb, true, ts, audioextra.c_str(), audioextra.size());
     }
-}
-
-
-
-void write_fragments(fileinfo *finfo, boost::shared_ptr<mp4::Context>& ctx, double timelimit) {
-    unsigned segment = 1;
-    unsigned fragment = 1;
-    double limit_ts = timelimit;
-    double old_ts = 0;
-    double now;
-    unsigned nsample = 0;
-    std::stringbuf sb;
-
-    write_fragment_prefix(&sb, ctx, 0);
-
-    while ( nsample < ctx->nsamples() ) {
-        mp4::SampleInfo *si = ctx->get_sample(nsample++);
-        now = si->timestamp();
-
-        if ( si->_video ) {
-            if ( si->_keyframe && now >= limit_ts ) {
-                close_fragment(finfo, segment, fragment++, sb.str(), old_ts, now - old_ts);
-                old_ts = now;
-                limit_ts = now + timelimit;
-                sb.str(std::string());
-                write_fragment_prefix(&sb, ctx, now * 1000);
-            }
-            write_video_packet(&sb, si->_keyframe, false, si->_composition_offset * 1000.0 / si->_timescale,
-                               now * 1000, finfo->mapping + si->_offset, si->_sample_size);
-        }
-        else {
-            write_audio_packet(&sb, false, now * 1000, finfo->mapping + si->_offset, si->_sample_size);
-        }
-    }
-    close_fragment(finfo, segment, fragment, sb.str(), now, ctx->duration() - now);
 }
 
 
@@ -276,25 +261,10 @@ fileinfo make_fragments(const std::string& filename) {
 
     finfo.duration = ctxt->duration();
 
-    write_fragments(&finfo, ctxt, fragment_duration / 1000.0);
-/*
-    int bitrate = int(st.st_size / ctx->duration);
+    finfo.videoextra = ctxt->videoextra();
+    finfo.audioextra = ctxt->audioextra();
 
-    std::cout << ctx->_samples.size() << " samples found.\n";
-    std::cout << "\nnsamples: " << ctx->nsamples()
-      << "\nhas video: " << (ctx->has_video() ? "yes" : "no")
-      << "\nhas audio: " << (ctx->has_audio() ? "yes" : "no")
-      << "\nwidth: " << ctx->width()
-      << "\nheight: " << ctx->height()
-      << "\npwidth: " << ctx->pwidth()
-      << "\npheight: " << ctx->pheight()
-      << "\nbitrate: " << ctx->bitrate()
-      << "\nduration: " << ctx->duration()
-      << std::endl;
-
-    std::cout << "writing..." << std::endl;
-    std::vector<Fragment> fragments = write_fragments(ctx, fragment_duration, finfo.mapping); 
-*/
+    generate_fragments(finfo.fragments, ctxt, fragment_duration / 1000.0);
     return finfo;
 }
 
@@ -333,6 +303,61 @@ int main(int argc, char **argv) try {
     std::vector<fileinfo> fileinfo_list;
     for ( std::vector<std::string>::const_iterator b = srcfiles.begin(), e = srcfiles.end(); b != e; ++b ) {
         fileinfo_list.push_back(make_fragments(*b));
+
+        // writing
+        const fileinfo& last = fileinfo_list.back();
+
+        // create the directory if needed:
+        std::string::size_type i_lastslash = last.filename.rfind('/');
+        std::string dirname;
+        if ( i_lastslash == std::string::npos ) {
+            dirname = last.filename + ".d";
+        }
+        else {
+            dirname.assign(last.filename, i_lastslash + 1, last.filename.size());
+            dirname += ".d";
+        }
+        if ( mkdir(dirname.c_str(), 0755) == -1 && errno != EEXIST ) {
+            throw system_error(errno, get_system_category(), "mkdir " + dirname);
+        }
+        for ( unsigned fragment = 1; fragment <= last.fragments.size(); ++fragment ) {
+            const Fragment& fr = last.fragments[fragment-1];
+            // write content
+            std::filebuf out;
+            std::stringstream fragment_file;
+            fragment_file << dirname << "/Seg1-Frag" << fragment;
+            if ( out.open(fragment_file.str().c_str(), std::ios::out | std::ios::binary | std::ios::trunc) ) {
+                write32(out, fr._totalsize + 8 +
+                             4 + 11 + 5 + last.videoextra.size() +
+                             4 + 11 + 2 + last.audioextra.size()
+                       );
+                out.sputn("mdat", 4);
+
+                write_fragment_prefix(&out, last.videoextra, last.audioextra, fr.timestamp_ms());
+                BOOST_FOREACH(const SampleEntry& se, fr._samples) {
+                    if ( se.video() ) {
+                        write_video_packet(&out, se.keyframe(), false, se.composition_offset(),
+                                           se.timestamp(),
+                                           last.mapping + se.offset(), se.size());
+                    }
+                    else {
+                        write_audio_packet(&out, false, se.timestamp(),
+                                           last.mapping + se.offset(), se.size());
+                    }
+                }
+                if ( !out.close() ) {
+                    std::stringstream errmsg;
+                    errmsg << "Error closing " << fragment_file.str();
+                    throw std::runtime_error(errmsg.str());
+                }
+            }
+            else {
+                std::stringstream errmsg;
+                errmsg << "Error opening " << fragment_file.str();
+                throw std::runtime_error(errmsg.str());
+            }
+        }
+        
     }
 
     unsigned total_fragments = fileinfo_list[0].fragments.size();
@@ -372,9 +397,9 @@ int main(int argc, char **argv) try {
     write32(afrt, total_fragments); // fragmentrunentrycount
     for ( unsigned ifragment = 0; ifragment < total_fragments; ++ifragment ) {
         write32(afrt, ifragment + 1);
-        write64(afrt, uint64_t(fileinfo_list[0].fragments[ifragment]._ts * 1000));
-        write32(afrt, uint32_t(fileinfo_list[0].fragments[ifragment]._dur * 1000));
-        if ( fileinfo_list[0].fragments[ifragment]._dur == 0 ) {
+        write64(afrt, uint64_t(fileinfo_list[0].fragments[ifragment].timestamp_ms()));
+        write32(afrt, uint32_t(fileinfo_list[0].fragments[ifragment].duration() * 1000));
+        if ( fileinfo_list[0].fragments[ifragment].duration() == 0 ) {
             assert ( ifragment == total_fragments - 1 );
             afrt.sputc(0);
         }
