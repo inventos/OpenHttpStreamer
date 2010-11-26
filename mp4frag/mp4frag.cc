@@ -48,32 +48,38 @@ namespace {
 
 
 void write16(std::streambuf& buf, uint16_t value) {
-    buf.sputc( (value >> 8) & 0xFF );
+    buf.sputc( (value / 0x100) & 0xFF );
     buf.sputc( value & 0xFF );
 }
 
 void write24(std::streambuf& buf, uint32_t value) {
-    buf.sputc( (value >> 16) & 0xFF );
-    buf.sputc( (value >> 8) & 0xFF );
-    buf.sputc( value & 0xFF );
+    char bytes[3];
+    bytes[0] = (value / 0x10000) & 0xFF;
+    bytes[1] = (value / 0x100) & 0xFF;
+    bytes[2] = value & 0xFF;
+    buf.sputn(bytes, 3);
 }
 
 void write32(std::streambuf& buf, uint32_t value) {
-    buf.sputc( (value >> 24) & 0xFF );
-    buf.sputc( (value >> 16) & 0xFF );
-    buf.sputc( (value >> 8) & 0xFF );
-    buf.sputc( value & 0xFF );
+    char bytes[4];
+    bytes[0] = (value / 0x1000000) & 0xFF;
+    bytes[1] = (value / 0x10000) & 0xFF;
+    bytes[2] = (value / 0x100) & 0xFF;
+    bytes[3] = value & 0xFF;
+    buf.sputn(bytes, 4);
 }
 
 void write64(std::streambuf& buf, uint64_t value) {
-    buf.sputc( (value >> 56) & 0xFF );
-    buf.sputc( (value >> 48) & 0xFF );
-    buf.sputc( (value >> 40) & 0xFF );
-    buf.sputc( (value >> 32) & 0xFF );
-    buf.sputc( (value >> 24) & 0xFF );
-    buf.sputc( (value >> 16) & 0xFF );
-    buf.sputc( (value >> 8) & 0xFF );
-    buf.sputc( value & 0xFF );
+    char bytes[8];
+    bytes[0] = (value / 0x100000000000000ULL) & 0xFF;
+    bytes[1] = (value / 0x1000000000000ULL) & 0xFF;
+    bytes[2] = (value / 0x10000000000ULL) & 0xFF;
+    bytes[3] = (value / 0x100000000ULL) & 0xFF;
+    bytes[4] = (value / 0x1000000) & 0xFF;
+    bytes[5] = (value / 0x10000) & 0xFF;
+    bytes[6] = (value / 0x100) & 0xFF;
+    bytes[7] = value & 0xFF;
+    buf.sputn(bytes, 8);
 }
 
 void writebox(std::streambuf& buf, const char *name, const std::string& box) {
