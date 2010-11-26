@@ -18,6 +18,7 @@
  * Lesser General Public License for more details.
  */
 
+#include "mp4frag.hh"
 #include "mp4.hh"
 #include "base64.hh"
 #include <boost/program_options.hpp>
@@ -27,7 +28,6 @@
 #include <sstream>
 #include <fstream>
 #include <stdexcept>
-#include <netinet/in.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/mman.h>
@@ -36,16 +36,6 @@
 #include <unistd.h>
 
 using namespace boost::system;
-
-namespace {
-    std::string manifest_name = "manifest.f4m";
-    std::string docroot = ".";
-    std::string basedir = ".";
-    std::string video_id("some_video");
-    std::vector<std::string> srcfiles;
-    int fragment_duration;
-}
-
 
 void write16(std::streambuf& buf, uint16_t value) {
     buf.sputc( (value / 0x100) & 0xFF );
@@ -88,59 +78,6 @@ void writebox(std::streambuf& buf, const char *name, const std::string& box) {
     buf.sputn(box.c_str(), box.size());
 }
 
-
-
-struct SampleEntry {
-    off_t _offset;
-    uint32_t _size;
-    uint32_t _timestamp;
-    uint32_t _composition_offset;
-    off_t offset() const { return _offset; }
-    uint32_t size() const { return _size; }
-    uint32_t timestamp() const { return _timestamp; }
-    uint32_t composition_offset() const { return _composition_offset & 0xFFFFFF; }
-    bool video() const { return _composition_offset & 0x80000000; }
-    bool keyframe() const { return _composition_offset & 0x40000000; }
-
-    SampleEntry(off_t o, uint32_t s, uint32_t ts, uint32_t comp, bool isvideo, bool iskey = false) {
-        _offset = o;
-        _size = s;
-        _timestamp = ts;
-        _composition_offset = comp & 0xFFFFFF;
-        if ( isvideo ) {
-           _composition_offset |= 0x80000000;
-           if ( iskey ) {
-               _composition_offset |= 0x40000000;
-           }
-        }
-    }
-};
-
-
-struct Fragment {
-    double _duration;
-    uint32_t _totalsize;
-    std::vector<SampleEntry> _samples;
-    Fragment() : _duration(0), _totalsize(0) {}
-    uint32_t timestamp_ms() const { return _samples[0].timestamp(); }
-    double duration() const { return _duration; }
-};
-
-
-
-
-
-struct fileinfo {
-    std::string filename;
-    std::string dirname;
-    unsigned width;
-    unsigned height;
-    double duration;
-    const char *mapping;
-    off_t filesize;
-    std::vector<Fragment> fragments;
-    std::string videoextra, audioextra;
-};
 
 
 
@@ -220,153 +157,43 @@ void write_fragment_prefix(std::streambuf *sb,
 }
 
 
-fileinfo make_fragments(const std::string& filename) {
-    fileinfo finfo;
-    finfo.filename = filename;
-
-    std::string::size_type i_lastslash = filename.rfind('/');
-    if ( i_lastslash == std::string::npos ) {
-        finfo.dirname = filename + ".d";
+Media::~Media() {
+    if ( mapping != 0 ) {
+        munmap(const_cast<char*>(mapping), filesize);
     }
-    else {
-        finfo.dirname.assign(filename, i_lastslash + 1, filename.size());
-        finfo.dirname += ".d";
-    }
-
-    struct stat st;
-    if ( stat(filename.c_str(), &st) < 0 ) {
-        throw system_error(errno, get_system_category(), "stat");
-    }
-    finfo.filesize = st.st_size;
-
-    int fd = open(filename.c_str(), O_RDONLY);
-    if ( fd == -1 ) {
-        throw system_error(errno, get_system_category(), "opening " + filename);
-    }
-    void *mapping = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED, fd, 0);
-    if ( mapping == (void*)-1 ) {
-        throw system_error(errno, get_system_category(), "mmaping " + filename);
-    }
-    finfo.mapping = (const char*)mapping;
-
-    boost::shared_ptr<mp4::Context> ctxt(new mp4::Context);
-    off_t offset = 0;
-    while ( unsigned nbytes = ctxt->wants() ) {
-        if ( unsigned s = ctxt->to_skip() ) {
-            offset += s;
-            ctxt->skip(0);                    
-        }
-        if ( offset >= st.st_size ) {
-            break;
-        }
-        ctxt->feed( (char*)mapping + offset, nbytes );
-        offset += nbytes;
-    }
-    close(fd);
-    ctxt->finalize();
-
-    finfo.duration = ctxt->duration();
-
-    finfo.videoextra = ctxt->videoextra();
-    finfo.audioextra = ctxt->audioextra();
-
-    generate_fragments(finfo.fragments, ctxt, fragment_duration / 1000.0);
-    return finfo;
 }
 
 
+void serialize_fragment(std::streambuf *sb, const boost::shared_ptr<Media>& pmedia, unsigned fragnum) {
+    const Fragment& fr = pmedia->fragments.at(fragnum);
+    write32(*sb, fr._totalsize + 8 +
+            4 + 11 + 5 + pmedia->videoextra.size() +
+            4 + 11 + 2 + pmedia->audioextra.size()
+           );
+    sb->sputn("mdat", 4);
 
-void parse_options(int argc, char **argv) {
-    namespace po = boost::program_options;
-
-    po::options_description desc("Allowed options");
-    desc.add_options()
-      ("help", "produce help message")
-      ("src", po::value< std::vector<std::string> >(&srcfiles), "source mp4 file name")
-      ("docroot", po::value<std::string>(&docroot)->default_value("."), "docroot directory")
-      ("basedir", po::value<std::string>(&basedir)->default_value("."), "base directory for manifest file")
-      ("video_id", po::value<std::string>(&video_id)->default_value("some_video"), "video id for manifest file")
-      ("manifest", po::value<std::string>(&manifest_name)->default_value("manifest.f4m"), "manifest file name")
-      ("fragmentduration", po::value<int>(&fragment_duration)->default_value(3000), "single fragment duration, ms")
-    ;
-
-    po::variables_map vm;
-    po::store(po::parse_command_line(argc, argv, desc), vm);
-    po::notify(vm);    
-
-    if (vm.count("help") || argc == 1 || srcfiles.size() == 0) {
-        std::cerr << desc << "\n";
-        exit(1);
-    }
-    
-}
-
-
-
-int main(int argc, char **argv) try {
-    parse_options(argc, argv);
-
-    std::vector<fileinfo> fileinfo_list;
-    for ( std::vector<std::string>::const_iterator b = srcfiles.begin(), e = srcfiles.end(); b != e; ++b ) {
-        fileinfo_list.push_back(make_fragments(*b));
-
-        // writing
-        const fileinfo& last = fileinfo_list.back();
-
-        // create the directory if needed:
-        std::string::size_type i_lastslash = last.filename.rfind('/');
-        std::string dirname;
-        if ( i_lastslash == std::string::npos ) {
-            dirname = last.filename + ".d";
+    write_fragment_prefix(sb, pmedia->videoextra, pmedia->audioextra, fr.timestamp_ms());
+    BOOST_FOREACH(const SampleEntry& se, fr._samples) {
+        if ( se.video() ) {
+            write_video_packet(sb, se.keyframe(), false, se.composition_offset(),
+                               se.timestamp(),
+                               pmedia->mapping + se.offset(), se.size());
         }
         else {
-            dirname.assign(last.filename, i_lastslash + 1, last.filename.size());
-            dirname += ".d";
+            write_audio_packet(sb, false, se.timestamp(),
+                               pmedia->mapping + se.offset(), se.size());
         }
-        if ( mkdir(dirname.c_str(), 0755) == -1 && errno != EEXIST ) {
-            throw system_error(errno, get_system_category(), "mkdir " + dirname);
-        }
-        for ( unsigned fragment = 1; fragment <= last.fragments.size(); ++fragment ) {
-            const Fragment& fr = last.fragments[fragment-1];
-            // write content
-            std::filebuf out;
-            std::stringstream fragment_file;
-            fragment_file << dirname << "/Seg1-Frag" << fragment;
-            if ( out.open(fragment_file.str().c_str(), std::ios::out | std::ios::binary | std::ios::trunc) ) {
-                write32(out, fr._totalsize + 8 +
-                             4 + 11 + 5 + last.videoextra.size() +
-                             4 + 11 + 2 + last.audioextra.size()
-                       );
-                out.sputn("mdat", 4);
-
-                write_fragment_prefix(&out, last.videoextra, last.audioextra, fr.timestamp_ms());
-                BOOST_FOREACH(const SampleEntry& se, fr._samples) {
-                    if ( se.video() ) {
-                        write_video_packet(&out, se.keyframe(), false, se.composition_offset(),
-                                           se.timestamp(),
-                                           last.mapping + se.offset(), se.size());
-                    }
-                    else {
-                        write_audio_packet(&out, false, se.timestamp(),
-                                           last.mapping + se.offset(), se.size());
-                    }
-                }
-                if ( !out.close() ) {
-                    std::stringstream errmsg;
-                    errmsg << "Error closing " << fragment_file.str();
-                    throw std::runtime_error(errmsg.str());
-                }
-            }
-            else {
-                std::stringstream errmsg;
-                errmsg << "Error opening " << fragment_file.str();
-                throw std::runtime_error(errmsg.str());
-            }
-        }
-        
     }
+}
 
-    unsigned total_fragments = fileinfo_list[0].fragments.size();
+
+void get_manifest(std::streambuf* sb, const std::vector< boost::shared_ptr<Media> >& medialist,
+                  const std::string& video_id) {
+    if ( medialist.size() == 0 ) {
+        throw std::runtime_error("No media");
+    }
+    const boost::shared_ptr<Media>& firstmedia = medialist.front();
+    unsigned total_fragments = firstmedia->fragments.size();
 
     std::stringbuf abst;
     abst.sputc(0); // version
@@ -374,7 +201,7 @@ int main(int argc, char **argv) try {
     write32(abst, 14); // bootstrapinfoversion
     abst.sputc(0); // profile, live, update
     write32(abst, 1000); // timescale
-    write64(abst, fileinfo_list[0].duration * 1000); // currentmediatime
+    write64(abst, firstmedia->duration * 1000); // currentmediatime
     write64(abst, 0); // smptetimecodeoffset
     abst.sputc(0); // movieidentifier
     abst.sputc(0); // serverentrycount
@@ -403,10 +230,12 @@ int main(int argc, char **argv) try {
     write32(afrt, total_fragments); // fragmentrunentrycount
     for ( unsigned ifragment = 0; ifragment < total_fragments; ++ifragment ) {
         write32(afrt, ifragment + 1);
-        write64(afrt, uint64_t(fileinfo_list[0].fragments[ifragment].timestamp_ms()));
-        write32(afrt, uint32_t(fileinfo_list[0].fragments[ifragment].duration() * 1000));
-        if ( fileinfo_list[0].fragments[ifragment].duration() == 0 ) {
-            assert ( ifragment == total_fragments - 1 );
+        write64(afrt, uint64_t(firstmedia->fragments[ifragment].timestamp_ms()));
+        write32(afrt, uint32_t(firstmedia->fragments[ifragment].duration() * 1000));
+        if ( firstmedia->fragments[ifragment].duration() == 0 ) {
+            if ( ifragment != total_fragments - 1 ) {
+                throw std::runtime_error("Unexpected: fragment with zero duration");
+            }
             afrt.sputc(0);
         }
     }
@@ -416,35 +245,81 @@ int main(int argc, char **argv) try {
     writebox(bootstrapinfo_stream, "abst", abst.str());
     std::string bootstrapinfo = bootstrapinfo_stream.str();
 
-    std::string info("bt");
-    std::stringstream manifestname;
-    manifestname << docroot << '/' << basedir << '/' << manifest_name;
-    std::ofstream manifest_out(manifestname.str().c_str());
-    if ( !manifest_out ) {
-        throw std::runtime_error("Error opening " + manifestname.str());
-    }
+    const char *info = "bootstrap";
+
+    std::ostream manifest_out(sb);
     manifest_out << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
       "<manifest xmlns=\"http://ns.adobe.com/f4m/1.0\">\n"
       "<id>" << video_id << "</id>\n"
       "<streamType>recorded</streamType>\n"
-      "<duration>" << fileinfo_list[0].duration << "</duration>\n"
+      "<duration>" << firstmedia->duration << "</duration>\n"
       "<bootstrapInfo profile=\"named\" id=\"" << info << "\">";
     base64::encode(manifest_out.rdbuf(), bootstrapinfo.c_str(), bootstrapinfo.size());
-    manifest_out << "</bootstrapinfo>\n";
-    BOOST_FOREACH( const fileinfo& fi, fileinfo_list ) {
+    manifest_out << "</bootstrapInfo>\n";
+    BOOST_FOREACH( const boost::shared_ptr<Media>& fi, medialist ) {
         manifest_out <<  
-          "<media streamId=\"" << video_id << "\" url=\"" << fi.dirname << "/\" bootstrapinfoId=\"" << info << "\" "
-          "bitrate=\"" << int(fi.filesize / fi.duration / 10000 * 8) * 10000 << "\" "
+          "<media streamId=\"" << video_id << "\" url=\"" << fi->name << ".d/\" bootstrapinfoId=\"" << info << "\" "
+          "bitrate=\"" << int(fi->filesize / fi->duration / 10000 * 8) * 10000 << "\" "
           " />\n";
     }
     manifest_out << "</manifest>\n";
-    manifest_out.close();
-    if ( manifest_out.fail() || manifest_out.bad() ) {
-        std::stringstream errmsg;
-        errmsg << "Error writing " << manifestname;
-        throw std::runtime_error(errmsg.str());
+    if ( !manifest_out ) {
+        throw std::runtime_error("Error writing manifest");
     }
 }
-catch ( std::exception& e ) {
-    std::cerr << e.what() << "\n";
+
+
+
+
+boost::shared_ptr<Media> make_fragments(const std::string& filename, unsigned fragment_duration) {
+    boost::shared_ptr<Media> finfo(new Media);
+
+    std::string::size_type i_lastslash = filename.rfind('/');
+    if ( i_lastslash == std::string::npos ) {
+        finfo->name = filename;
+    }
+    else {
+        std::string dname;
+        finfo->name.assign(filename, i_lastslash + 1, filename.size());
+    }
+
+    struct stat st;
+    if ( stat(filename.c_str(), &st) < 0 ) {
+        throw system_error(errno, get_system_category(), "stat");
+    }
+    finfo->filesize = st.st_size;
+
+    int fd = open(filename.c_str(), O_RDONLY);
+    if ( fd == -1 ) {
+        throw system_error(errno, get_system_category(), "opening " + filename);
+    }
+    void *mapping = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED, fd, 0);
+    if ( mapping == (void*)-1 ) {
+        throw system_error(errno, get_system_category(), "mmaping " + filename);
+    }
+    close(fd);
+    finfo->mapping = (const char*)mapping;
+
+    boost::shared_ptr<mp4::Context> ctxt(new mp4::Context);
+    off_t offset = 0;
+    while ( unsigned nbytes = ctxt->wants() ) {
+        if ( unsigned s = ctxt->to_skip() ) {
+            offset += s;
+            ctxt->skip(0);                    
+        }
+        if ( offset >= st.st_size ) {
+            break;
+        }
+        ctxt->feed( (char*)mapping + offset, nbytes );
+        offset += nbytes;
+    }
+    ctxt->finalize();
+
+    finfo->duration = ctxt->duration();
+
+    finfo->videoextra = ctxt->videoextra();
+    finfo->audioextra = ctxt->audioextra();
+
+    generate_fragments(finfo->fragments, ctxt, fragment_duration / 1000.0);
+    return finfo;
 }
