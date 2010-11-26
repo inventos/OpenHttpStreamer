@@ -18,7 +18,7 @@ def save_config(config):
     fd.close()
 
 LIBS_USED = ['program_options', "system"]
-SRC_LIST = [ 'mp4frag.cc', 'mp4.cc', 'base64.cc' ]
+SRC_LIST = [ 'mp4frag_main.cc', 'mp4frag.cc', 'mp4.cc', 'base64.cc' ]
 
 #SetOption('clean', "-c")
 #if "clean" in COMMAND_LINE_TARGETS:
