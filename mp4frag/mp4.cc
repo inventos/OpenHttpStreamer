@@ -166,8 +166,8 @@ namespace mp4 {
 
     void TopLevel::parse(const char *data) {
         uint32_t sz = UINT32(data);
-        std::cerr << "TopLevel: " << sz << "," << _total << "," << std::string(data + 4, 4) << "\n";
-        assert( sz <= _total );
+        // std::cerr << "TopLevel: " << sz << "," << _total << "," << std::string(data + 4, 4) << "\n";
+        MP4_CHECK( sz <= _total );
         _total -= sz;
         sz -= 8;
         if ( EQ(data + 4, "moov") ) {
@@ -180,7 +180,7 @@ namespace mp4 {
 
     void Moov::parse(const char *data) {
         uint32_t sz = UINT32(data);
-        assert ( _total >= sz );
+        MP4_CHECK( _total >= sz );
         _total -= sz;
         sz -= 8;
         // std::cerr << "Moov: " << sz << "," << _total << "," << std::string(data + 4, 4) << "\n";
@@ -196,7 +196,7 @@ namespace mp4 {
     void Trak::parse(const char *data) {
         uint32_t sz = UINT32(data);
         // std::cerr << "Trak: " << "sz=" <<  sz << ", total= " << _total << "," << std::string(data + 4, 4) << "\n";
-        assert ( _total >= sz );
+        MP4_CHECK( _total >= sz );
         _total -= sz;
         sz -= 8;
         if ( EQ(data+4, "mdia") ) {
@@ -213,7 +213,7 @@ namespace mp4 {
     void Mdia::parse(const char *data) {
         uint32_t sz = UINT32(data);
         // std::cerr << "Mdia: " << sz << "," << _total << "," << std::string(data + 4, 4) << "\n";
-        assert ( _total >= sz );
+        MP4_CHECK( _total >= sz );
         _total -= sz;
         sz -= 8;
         if ( EQ(data+4, "minf") ) {
@@ -534,10 +534,7 @@ namespace mp4 {
                     // LOG(lMp4, 0, "overflow", Param("to_skip"), _parser->_to_skip, Param("wants"), wants, Param("buffersize"), buffersize);
                 }
                 if ( (unsigned long)(_parser->_to_skip) + (unsigned long)(wants) < buffersize ) {
-                    if ( _parser->_to_skip >= buffersize ) {
-                        std::cerr << "to_skip=" << _parser->_to_skip << ", buffersize=" << buffersize << std::endl;
-                        assert ( _parser->_to_skip < buffersize );
-                    }
+                    assert( _parser->_to_skip < buffersize );
                     assert ( wants < buffersize );
                     _buffer.erase(_buffer.begin(), _buffer.begin() + to_skip);
                     assert ( _buffer.size() == buffersize - to_skip );

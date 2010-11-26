@@ -46,8 +46,6 @@ namespace {
     int fragment_duration;
 }
 
-
-
 void parse_options(int argc, char **argv) {
     namespace po = boost::program_options;
 
@@ -83,7 +81,7 @@ int main(int argc, char **argv) try {
     struct timeval then, now;
     gettimeofday(&then, 0);
     BOOST_FOREACH(std::string& srcfile, srcfiles) {
-        fileinfo_list.push_back(make_fragments(srcfile));
+        fileinfo_list.push_back(make_fragments(srcfile, fragment_duration));
     }
     gettimeofday(&now, 0);
     double diff = now.tv_sec - then.tv_sec + 1e-6*(now.tv_usec - then.tv_usec);
@@ -96,7 +94,6 @@ int main(int argc, char **argv) try {
     BOOST_FOREACH(boost::shared_ptr<Media>& pmedia, fileinfo_list) {
         // create the directory if needed:
         std::string dirname = pmedia->name + ".d";
-        std::cerr << dirname << "\n";
         if ( mkdir(dirname.c_str(), 0755) == -1 && errno != EEXIST ) {
             throw system_error(errno, get_system_category(), "mkdir " + dirname);
         }
@@ -125,7 +122,7 @@ int main(int argc, char **argv) try {
     std::filebuf manifest_filebuf;
     if ( manifest_filebuf.open(manifestname.str().c_str(), 
                                std::ios::out | std::ios::binary | std::ios::trunc) ) {
-        get_manifest(&manifest_filebuf, fileinfo_list);
+        get_manifest(&manifest_filebuf, fileinfo_list, video_id);
         if ( !manifest_filebuf.close() ) {
             std::stringstream errmsg;
             errmsg << "Error closing " << manifestname.str();

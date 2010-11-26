@@ -37,16 +37,6 @@
 
 using namespace boost::system;
 
-namespace {
-    std::string manifest_name = "manifest.f4m";
-    std::string docroot = ".";
-    std::string basedir = ".";
-    std::string video_id("some_video");
-    std::vector<std::string> srcfiles;
-    int fragment_duration = 3000;
-}
-
-
 void write16(std::streambuf& buf, uint16_t value) {
     buf.sputc( (value / 0x100) & 0xFF );
     buf.sputc( value & 0xFF );
@@ -197,7 +187,8 @@ void serialize_fragment(std::streambuf *sb, const boost::shared_ptr<Media>& pmed
 }
 
 
-void get_manifest(std::streambuf* sb, const std::vector< boost::shared_ptr<Media> >& medialist) {
+void get_manifest(std::streambuf* sb, const std::vector< boost::shared_ptr<Media> >& medialist,
+                  const std::string& video_id) {
     if ( medialist.size() == 0 ) {
         throw std::runtime_error("No media");
     }
@@ -255,8 +246,6 @@ void get_manifest(std::streambuf* sb, const std::vector< boost::shared_ptr<Media
     std::string bootstrapinfo = bootstrapinfo_stream.str();
 
     const char *info = "bootstrap";
-    std::stringstream manifestname;
-    manifestname << docroot << '/' << basedir << '/' << manifest_name;
 
     std::ostream manifest_out(sb);
     manifest_out << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -282,7 +271,7 @@ void get_manifest(std::streambuf* sb, const std::vector< boost::shared_ptr<Media
 
 
 
-boost::shared_ptr<Media> make_fragments(const std::string& filename) {
+boost::shared_ptr<Media> make_fragments(const std::string& filename, unsigned fragment_duration) {
     boost::shared_ptr<Media> finfo(new Media);
 
     std::string::size_type i_lastslash = filename.rfind('/');
