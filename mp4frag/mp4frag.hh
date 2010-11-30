@@ -59,6 +59,8 @@ boost::shared_ptr<Media> make_fragments(const std::string& filename, unsigned fr
 void get_manifest(std::streambuf* sb, const std::vector< boost::shared_ptr<Media> >& medialist,
                   const std::string& video_id);
 void serialize_fragment(std::streambuf *sb, const boost::shared_ptr<Media>& media, unsigned fragnum);
+void serialize_fragment_to_template(std::streambuf *sb, const boost::shared_ptr<Media>& media, unsigned fragnum);
+void serialize_fragment_from_template(std::streambuf *inbuf, std::streambuf *outbuf, const char *mapping);
 
 
 #endif
