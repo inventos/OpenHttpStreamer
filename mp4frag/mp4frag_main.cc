@@ -43,6 +43,7 @@ namespace {
     std::string basedir = ".";
     std::string video_id("some_video");
     std::vector<std::string> srcfiles;
+    bool produce_template = false;
     int fragment_duration;
 }
 
@@ -58,6 +59,7 @@ void parse_options(int argc, char **argv) {
       ("video_id", po::value<std::string>(&video_id)->default_value("some_video"), "video id for manifest file")
       ("manifest", po::value<std::string>(&manifest_name)->default_value("manifest.f4m"), "manifest file name")
       ("fragmentduration", po::value<int>(&fragment_duration)->default_value(3000), "single fragment duration, ms")
+      ("template", "make template files instead of full fragments")
     ;
 
     po::variables_map vm;
@@ -68,6 +70,8 @@ void parse_options(int argc, char **argv) {
         std::cerr << desc << "\n";
         exit(1);
     }
+
+    produce_template = vm.count("template") != 0;
     
 }
 
@@ -101,8 +105,16 @@ int main(int argc, char **argv) try {
             std::filebuf out;
             std::stringstream fragment_file;
             fragment_file << dirname << "/Seg1-Frag" << fragment;
+            if ( produce_template ) {
+                fragment_file << ".template";
+            }
             if ( out.open(fragment_file.str().c_str(), std::ios::out | std::ios::binary | std::ios::trunc) ) {
-                serialize_fragment(&out, pmedia, fragment - 1);
+                if ( produce_template ) {
+                    serialize_fragment_to_template(&out, pmedia, fragment - 1);
+                }
+                else {
+                    serialize_fragment(&out, pmedia, fragment - 1);
+                }
                 if ( !out.close() ) {
                     std::stringstream errmsg;
                     errmsg << "Error closing " << fragment_file.str();

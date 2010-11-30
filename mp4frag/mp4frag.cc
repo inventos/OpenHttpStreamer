@@ -51,12 +51,12 @@ void write24(std::streambuf& buf, uint32_t value) {
 }
 
 void write32(std::streambuf& buf, uint32_t value) {
-    char bytes[4];
+    unsigned char bytes[4];
     bytes[0] = (value / 0x1000000) & 0xFF;
     bytes[1] = (value / 0x10000) & 0xFF;
     bytes[2] = (value / 0x100) & 0xFF;
     bytes[3] = value & 0xFF;
-    buf.sputn(bytes, 4);
+    buf.sputn((char*)bytes, 4);
 }
 
 void write64(std::streambuf& buf, uint64_t value) {
@@ -78,7 +78,55 @@ void writebox(std::streambuf& buf, const char *name, const std::string& box) {
     buf.sputn(box.c_str(), box.size());
 }
 
+void writestring(std::streambuf& buf, const std::string& str) {
+    write16(buf, str.size());
+    buf.sputn(str.c_str(), str.size());
+}
 
+uint64_t read64(std::streambuf *in) {
+    char d[8];
+    in->sgetn(d, 8);
+    return (d[0] & 0xff) * 0x100000000000000ULL + 
+           (d[1] & 0xff) * 0x1000000000000ULL +
+           (d[2] & 0xff) * 0x10000000000ULL +
+           (d[3] & 0xff) * 0x100000000ULL +
+           (d[4] & 0xff) * 0x1000000ULL +
+           (d[5] & 0xff) * 0x10000 +
+           (d[6] & 0xff) * 0x100 +
+           (d[7] & 0xff);
+}
+
+uint32_t read32(std::streambuf *in) {
+    unsigned char d[4];
+    in->sgetn((char*)d, 4);
+    return (d[0] & 0xff) * 0x1000000 + (d[1] & 0xff) * 0x10000 + (d[2] & 0xff) * 0x100 + (d[3] & 0xff);
+}
+
+uint32_t read24(std::streambuf *in) {
+    char d[3];
+    in->sgetn(d, 3);
+    return (d[0] & 0xff) * 0x10000 + (d[1] & 0xff) * 0x100 + (d[2] & 0xff);
+}
+
+uint16_t read16(std::streambuf *in) {
+    char d[2];
+    in->sgetn(d, 2);
+    return (d[0] & 0xff) * 0x100 + (d[1] & 0xff);
+}
+
+std::string readstring(std::streambuf *in) {
+    uint16_t strsz = read16(in);
+    if ( strsz < 256 ) {
+        char buffer[256];
+        in->sgetn(buffer, strsz);
+        return std::string(buffer, strsz);
+    }
+    else {
+        std::vector<char> buffer(strsz);
+        in->sgetn(&buffer[0], strsz);
+        return std::string(&buffer[0], strsz);
+    }
+}
 
 
 void generate_fragments(std::vector<Fragment>& fragments, boost::shared_ptr<mp4::Context>& ctx, double timestep) {
@@ -186,6 +234,56 @@ void serialize_fragment(std::streambuf *sb, const boost::shared_ptr<Media>& pmed
     }
 }
 
+
+void serialize_fragment_to_template(std::streambuf *sb, 
+                                 const boost::shared_ptr<Media>& pmedia, 
+                                 unsigned fragnum) {
+    const Fragment& fr = pmedia->fragments.at(fragnum);
+    write32(*sb, fr._totalsize);
+    writestring(*sb, pmedia->videoextra);
+    writestring(*sb, pmedia->audioextra);
+    write32(*sb, fr.timestamp_ms());
+    write32(*sb, fr._samples.size());
+
+    BOOST_FOREACH(const SampleEntry& se, fr._samples) {
+        write32(*sb, se.timestamp());
+        write32(*sb, se.offset());
+        write32(*sb, se.size());
+        uint32_t comp = se.composition_offset();
+        assert(comp < (1 << 24));
+        write32(*sb, comp);
+        sb->sputc( int(se.video()) | (int(se.keyframe()) << 1) );
+    }
+}
+
+void serialize_fragment_from_template(std::streambuf *inbuf, std::streambuf *sb, const char *mapping) {
+    uint32_t totalsize = read32(inbuf);
+    std::string videoextra = readstring(inbuf);
+    std::string audioextra = readstring(inbuf);
+    write32(*sb, totalsize + 8 +
+            4 + 11 + 5 + videoextra.size() +
+            4 + 11 + 2 + audioextra.size()
+           );
+    sb->sputn("mdat", 4);
+    uint32_t timestamp_ms = read32(inbuf);
+    write_fragment_prefix(sb, videoextra, audioextra, timestamp_ms);
+    uint32_t nsamples = read32(inbuf);
+    for ( unsigned int nnn = 0; nnn < nsamples; ++nnn ) {
+        uint32_t timestamp = read32(inbuf);
+        uint32_t offset = read32(inbuf);
+        uint32_t size = read32(inbuf);
+        uint32_t comp_offset = read32(inbuf);
+        uint8_t frame = inbuf->sbumpc();
+        if ( frame & 1 ) {
+            write_video_packet(sb, frame & 2, false, comp_offset,
+                               timestamp,
+                               mapping + offset, size);
+        }
+        else {
+            write_audio_packet(sb, false, timestamp, mapping + offset, size);
+        }
+    }
+}
 
 void get_manifest(std::streambuf* sb, const std::vector< boost::shared_ptr<Media> >& medialist,
                   const std::string& video_id) {
