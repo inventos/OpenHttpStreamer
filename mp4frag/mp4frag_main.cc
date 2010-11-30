@@ -19,22 +19,16 @@
  */
 
 #include "mp4frag.hh"
-#include "mp4.hh"
-#include "base64.hh"
 #include <boost/program_options.hpp>
 #include <boost/system/system_error.hpp>
 #include <boost/system/error_code.hpp>
 #include <boost/foreach.hpp>
 #include <boost/filesystem.hpp>
-#include <sstream>
 #include <fstream>
 #include <stdexcept>
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/mman.h>
+#include <iostream>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <unistd.h>
 
 using namespace boost::system;
 namespace bfs = boost::filesystem;
@@ -115,15 +109,11 @@ int main(int argc, char **argv) try {
                     serialize_fragment(&out, pmedia, fragment - 1);
                 }
                 if ( !out.close() ) {
-                    std::stringstream errmsg;
-                    errmsg << "Error closing " << fragment_file;
-                    throw std::runtime_error(errmsg.str());
+                    throw std::runtime_error("Error closing " + fragment_file.string());
                 }
             }
             else {
-                std::stringstream errmsg;
-                errmsg << "Error opening " << fragment_file;
-                throw std::runtime_error(errmsg.str());
+                throw std::runtime_error("Error opening " + fragment_file.string());
             }
         }
     }

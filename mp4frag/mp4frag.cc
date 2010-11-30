@@ -21,19 +21,14 @@
 #include "mp4frag.hh"
 #include "mp4.hh"
 #include "base64.hh"
-#include <boost/program_options.hpp>
 #include <boost/system/system_error.hpp>
 #include <boost/system/error_code.hpp>
 #include <boost/foreach.hpp>
 #include <sstream>
-#include <fstream>
 #include <stdexcept>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/mman.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
 
 using namespace boost::system;
 
