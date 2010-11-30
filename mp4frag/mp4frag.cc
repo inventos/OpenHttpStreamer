@@ -356,7 +356,7 @@ void get_manifest(std::streambuf* sb, const std::vector< boost::shared_ptr<Media
     manifest_out << "</bootstrapInfo>\n";
     BOOST_FOREACH( const boost::shared_ptr<Media>& fi, medialist ) {
         manifest_out <<  
-          "<media streamId=\"" << video_id << "\" url=\"" << fi->name << ".d/\" bootstrapinfoId=\"" << info << "\" "
+          "<media streamId=\"" << video_id << "\" url=\"" << fi->medianame << "/\" bootstrapinfoId=\"" << info << "\" "
           "bitrate=\"" << int(fi->filesize / fi->duration / 10000 * 8) * 10000 << "\" "
           " />\n";
     }
@@ -372,15 +372,6 @@ void get_manifest(std::streambuf* sb, const std::vector< boost::shared_ptr<Media
 boost::shared_ptr<Media> make_fragments(const std::string& filename, unsigned fragment_duration) {
     boost::shared_ptr<Media> finfo(new Media);
 
-    std::string::size_type i_lastslash = filename.rfind('/');
-    if ( i_lastslash == std::string::npos ) {
-        finfo->name = filename;
-    }
-    else {
-        std::string dname;
-        finfo->name.assign(filename, i_lastslash + 1, filename.size());
-    }
-
     struct stat st;
     if ( stat(filename.c_str(), &st) < 0 ) {
         throw system_error(errno, get_system_category(), "stat");
@@ -393,6 +384,7 @@ boost::shared_ptr<Media> make_fragments(const std::string& filename, unsigned fr
     }
     void *mapping = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED, fd, 0);
     if ( mapping == (void*)-1 ) {
+        close(fd);
         throw system_error(errno, get_system_category(), "mmaping " + filename);
     }
     close(fd);

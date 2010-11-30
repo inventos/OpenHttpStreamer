@@ -42,7 +42,7 @@ struct Fragment {
 };
 
 struct Media {
-    std::string name;
+    std::string medianame;
     unsigned width;
     unsigned height;
     double duration;

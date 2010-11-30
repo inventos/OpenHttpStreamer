@@ -25,6 +25,7 @@
 #include <boost/system/system_error.hpp>
 #include <boost/system/error_code.hpp>
 #include <boost/foreach.hpp>
+#include <boost/filesystem.hpp>
 #include <sstream>
 #include <fstream>
 #include <stdexcept>
@@ -36,13 +37,12 @@
 #include <unistd.h>
 
 using namespace boost::system;
+namespace bfs = boost::filesystem;
 
 namespace {
-    std::string manifest_name = "manifest.f4m";
-    std::string docroot = ".";
-    std::string basedir = ".";
+    bfs::path manifest_name = "manifest.f4m";
     std::string video_id("some_video");
-    std::vector<std::string> srcfiles;
+    std::vector<bfs::path> srcfiles;
     bool produce_template = false;
     int fragment_duration;
 }
@@ -53,11 +53,9 @@ void parse_options(int argc, char **argv) {
     po::options_description desc("Allowed options");
     desc.add_options()
       ("help", "produce help message")
-      ("src", po::value< std::vector<std::string> >(&srcfiles), "source mp4 file name")
-      ("docroot", po::value<std::string>(&docroot)->default_value("."), "docroot directory")
-      ("basedir", po::value<std::string>(&basedir)->default_value("."), "base directory for manifest file")
+      ("src", po::value< std::vector<bfs::path> >(&srcfiles), "source mp4 file name")
       ("video_id", po::value<std::string>(&video_id)->default_value("some_video"), "video id for manifest file")
-      ("manifest", po::value<std::string>(&manifest_name)->default_value("manifest.f4m"), "manifest file name")
+      ("manifest", po::value<bfs::path>(&manifest_name)->default_value("manifest.f4m"), "manifest file name")
       ("fragmentduration", po::value<int>(&fragment_duration)->default_value(3000), "single fragment duration, ms")
       ("template", "make template files instead of full fragments")
     ;
@@ -80,12 +78,14 @@ void parse_options(int argc, char **argv) {
 int main(int argc, char **argv) try {
     parse_options(argc, argv);
 
-    std::vector< boost::shared_ptr<Media> > fileinfo_list;
+    std::vector<boost::shared_ptr<Media> > fileinfo_list;
 
     struct timeval then, now;
     gettimeofday(&then, 0);
-    BOOST_FOREACH(std::string& srcfile, srcfiles) {
-        fileinfo_list.push_back(make_fragments(srcfile, fragment_duration));
+    BOOST_FOREACH(bfs::path& srcfile, srcfiles) {
+        boost::shared_ptr<Media> pmedia = make_fragments(srcfile.string(), fragment_duration);
+        pmedia->medianame = srcfile.filename() + ".d";
+        fileinfo_list.push_back(pmedia);
     }
     gettimeofday(&now, 0);
     double diff = now.tv_sec - then.tv_sec + 1e-6*(now.tv_usec - then.tv_usec);
@@ -96,19 +96,18 @@ int main(int argc, char **argv) try {
     std::cerr << "Parsed in " << diff << " seconds\n";
 
     BOOST_FOREACH(boost::shared_ptr<Media>& pmedia, fileinfo_list) {
-        // create the directory if needed:
-        std::string dirname = pmedia->name + ".d";
-        if ( mkdir(dirname.c_str(), 0755) == -1 && errno != EEXIST ) {
-            throw system_error(errno, get_system_category(), "mkdir " + dirname);
+        bfs::path mediadir = manifest_name.parent_path() / pmedia->medianame;
+        if ( mkdir(mediadir.string().c_str(), 0755) == -1 && errno != EEXIST ) {
+            throw system_error(errno, get_system_category(), "mkdir " + mediadir.string());
         }
         for ( unsigned fragment = 1; fragment <= pmedia->fragments.size(); ++fragment ) {
             std::filebuf out;
-            std::stringstream fragment_file;
-            fragment_file << dirname << "/Seg1-Frag" << fragment;
+            std::string fragment_basename = std::string("Seg1-Frag") + boost::lexical_cast<std::string>(fragment);
             if ( produce_template ) {
-                fragment_file << ".template";
+                fragment_basename += ".template";
             }
-            if ( out.open(fragment_file.str().c_str(), std::ios::out | std::ios::binary | std::ios::trunc) ) {
+            bfs::path fragment_file = mediadir / fragment_basename;
+            if ( out.open(fragment_file.string().c_str(), std::ios::out | std::ios::binary | std::ios::trunc) ) {
                 if ( produce_template ) {
                     serialize_fragment_to_template(&out, pmedia, fragment - 1);
                 }
@@ -117,32 +116,30 @@ int main(int argc, char **argv) try {
                 }
                 if ( !out.close() ) {
                     std::stringstream errmsg;
-                    errmsg << "Error closing " << fragment_file.str();
+                    errmsg << "Error closing " << fragment_file;
                     throw std::runtime_error(errmsg.str());
                 }
             }
             else {
                 std::stringstream errmsg;
-                errmsg << "Error opening " << fragment_file.str();
+                errmsg << "Error opening " << fragment_file;
                 throw std::runtime_error(errmsg.str());
             }
         }
     }
 
-    std::stringstream manifestname;
-    manifestname << docroot << '/' << basedir << '/' << manifest_name;
     std::filebuf manifest_filebuf;
-    if ( manifest_filebuf.open(manifestname.str().c_str(), 
+    if ( manifest_filebuf.open(manifest_name.string().c_str(), 
                                std::ios::out | std::ios::binary | std::ios::trunc) ) {
         get_manifest(&manifest_filebuf, fileinfo_list, video_id);
         if ( !manifest_filebuf.close() ) {
             std::stringstream errmsg;
-            errmsg << "Error closing " << manifestname.str();
+            errmsg << "Error closing " << manifest_name;
             throw std::runtime_error(errmsg.str());
         }
     }
     else {
-        throw std::runtime_error("Error opening " + manifestname.str());
+        throw std::runtime_error("Error opening " + manifest_name.string());
     }
 }
 catch ( std::exception& e ) {
