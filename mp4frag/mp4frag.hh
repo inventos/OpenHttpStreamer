@@ -1,6 +1,7 @@
 #ifndef __mp4frag_hh__ac9d6258_0bd9_4b2f_b934_984389f48934
 #define __mp4frag_hh__ac9d6258_0bd9_4b2f_b934_984389f48934
 
+#include <stdint.h>
 #include <boost/shared_ptr.hpp>
 #include <vector>
 #include <string>

@@ -18,6 +18,7 @@ def save_config(config):
     fd.close()
 
 LIBS_USED = ['program_options', "system"]
+UTIL_LIBS_USED = ['date_time', "thread-mt"]
 SRC_LIST = [ 'mp4frag_main.cc', 'mp4frag.cc', 'mp4.cc', 'base64.cc' ]
 
 #SetOption('clean', "-c")
@@ -118,14 +119,29 @@ if "printconf" in COMMAND_LINE_TARGETS or "configure" in COMMAND_LINE_TARGETS:
 
 targets = {
     "release":   Environment(
-        CXXFLAGS = ["-O6"], 
-        CPPDEFINES = {'DEBUG': 1, 'WITH_STOPPER': 1, 'NO_THRIFT':1}, 
+        CXXFLAGS = ["-O6", "-fomit-frame-pointer"], 
+        CPPDEFINES = {'DEBUG': 1, 'WITH_STOPPER': 1, 'NO_THRIFT':1, 'NDEBUG': 1}, 
         ),
     "debug":   Environment(
         CXXFLAGS = ["-O0", "-g", "-fkeep-inline-functions", "-fmerge-all-constants"], 
-        CPPDEFINES = {'DEBUG': 1, 'WITH_STOPPER': 1, 'NO_THRIFT':1}, 
+        CPPDEFINES = {'DEBUG': 1, 'WITH_STOPPER': 1, 'NO_THRIFT':1},
+        LINKFLAGS = ["-pg"] 
+        ),
+    "profile": Environment(
+        CXXFLAGS = ["-O6", "-g", "-pg"],
+        CPPDEFINES = {'DEBUG': 1, 'NDEBUG': 1, 'WITH_STOPPER': 1},
+        LINKFLAGS = ["-pg"]
         ),
 }
+
+#    "release": Environment(CXXFLAGS = ["-O6", "-fomit-frame-pointer"], CPPDEFINES = {}),
+#    "debug":   Environment(CXXFLAGS = ["-O0", "-g", "-pg", "-fkeep-inline-functions"],
+#                           CPPDEFINES = {'DEBUG': 1, 'WITH_STOPPER': 1},
+#                           LINKFLAGS = ["-pg"],
+#                          ),
+#    "profile": Environment(CXXFLAGS = ["-O6", "-g", "-pg"],
+#                           CPPDEFINES = {'DEBUG': 1, 'NDEBUG': 1, 'WITH_STOPPER': 1},
+#                           LINKFLAGS = ["-pg"]),
 
 try:
     variants = ARGUMENTS["build"]
@@ -154,15 +170,14 @@ else:
 path = os.getcwd()
 for key in variants:
     dir = "." + key
-    env = targets[key]
+    frag_env = targets[key].Clone()
     
     for key, value in config['env'].items():
         if type(value) == type([]) or type(value) == type({}):
-            env.Append(**{key: value})
+            frag_env.Append(**{key: value})
         else:
-            env[key] = value
+            frag_env[key] = value
 
-	print env["CPPDEFINES"]
 	#variant_dir = path + ("" if path[-1] == "/" else "/") + dir
 	#if not os.path.exists(variant_dir):
 	#	os.mkdir(variant_dir)
@@ -170,17 +185,14 @@ for key in variants:
 	
 	#print os.getcwd()
 	
-	env.AppendUnique(LIBS = boost_lib(LIBS_USED))
+	frag_env.AppendUnique(LIBS = boost_lib(LIBS_USED))
 	VariantDir(dir, ".")
 	cur_src_list = [dir + "/" + src for src in SRC_LIST]
-	mp4frag = env.Program(dir + "/mp4frag", cur_src_list )
-	env.Alias('install', config["prefix"])
+	mp4frag = frag_env.Program(dir + "/mp4frag", cur_src_list )
+	frag_env.Alias('install', config["prefix"])
 	
-	
-
 	if len(variants) == 1 or (len(variants) > 1 and key == "release"):	
-		env.Install(config["prefix"], mp4frag)
-		
+		frag_env.Install(config["prefix"], mp4frag)
 #	print "DEFAULT_TARGETS is", map(str, DEFAULT_TARGETS)
 #	print "BUILD_TARGETS is", map(str, BUILD_TARGETS)
 	
@@ -191,3 +203,46 @@ for key in variants:
 
 #	mp4env.Install(config["prefix"], mp4frag)
 #	mp4env.Alias('install', config["prefix"])
+
+backend = ARGUMENTS.get("backend", "libevent")
+libutility_variants = ARGUMENTS.get("libutility_build", variants)
+
+for key in libutility_variants:
+    builddir = "libutility/" + "." + key
+    libsuffix = "lib"
+    libbuilddir = os.path.join(builddir, libsuffix)
+
+    util_env = targets[key].Clone()
+
+    # append common options to all variants:
+    util_env.AppendUnique(
+        #CPPPATH = ["../../../libutility"],
+        CPPPATH = ["#/libutility"],
+        CXXFLAGS = ['-pipe', '-Woverloaded-virtual', '-Wall', '-Werror', '-Wno-deprecated', '-std=c++0x'],
+        LIBPATH = [libsuffix],
+        LIBS = UTIL_LIBS_USED,
+    )
+    #env.Append
+
+#    for key, value in config['env'].items():
+#        if type(value) == type([]):
+#            env.Append(**{key: value})
+#        else:
+#            env[key] = value
+
+    if backend == "libevent":
+        util_env.AppendUnique(LIBS = ['event'],
+                   CPPDEFINES = {"LIBEVENT_REACTOR": 1}
+                  )
+    else:
+        util_env.AppendUnique(CPPDEFINES = {"EPOLL_REACTOR": 1})
+
+    Export('util_env')
+    
+    import os
+    print os.getcwd()
+    
+    SConscript("libutility/utility/src/SConscript", variant_dir = libbuilddir)
+
+#    if "examples" in COMMAND_LINE_TARGETS:
+#        SConscript("examples/SConscript", build_dir = builddir )
