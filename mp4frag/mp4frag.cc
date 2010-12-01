@@ -18,6 +18,7 @@
  * Lesser General Public License for more details.
  */
 
+#include "serialize.hh"
 #include "mp4frag.hh"
 #include "mp4.hh"
 #include "base64.hh"
@@ -31,98 +32,6 @@
 #include <sys/mman.h>
 
 using namespace boost::system;
-
-void write16(std::streambuf& buf, uint16_t value) {
-    buf.sputc( (value / 0x100) & 0xFF );
-    buf.sputc( value & 0xFF );
-}
-
-void write24(std::streambuf& buf, uint32_t value) {
-    char bytes[3];
-    bytes[0] = (value / 0x10000) & 0xFF;
-    bytes[1] = (value / 0x100) & 0xFF;
-    bytes[2] = value & 0xFF;
-    buf.sputn(bytes, 3);
-}
-
-void write32(std::streambuf& buf, uint32_t value) {
-    unsigned char bytes[4];
-    bytes[0] = (value / 0x1000000) & 0xFF;
-    bytes[1] = (value / 0x10000) & 0xFF;
-    bytes[2] = (value / 0x100) & 0xFF;
-    bytes[3] = value & 0xFF;
-    buf.sputn((char*)bytes, 4);
-}
-
-void write64(std::streambuf& buf, uint64_t value) {
-    char bytes[8];
-    bytes[0] = (value / 0x100000000000000ULL) & 0xFF;
-    bytes[1] = (value / 0x1000000000000ULL) & 0xFF;
-    bytes[2] = (value / 0x10000000000ULL) & 0xFF;
-    bytes[3] = (value / 0x100000000ULL) & 0xFF;
-    bytes[4] = (value / 0x1000000) & 0xFF;
-    bytes[5] = (value / 0x10000) & 0xFF;
-    bytes[6] = (value / 0x100) & 0xFF;
-    bytes[7] = value & 0xFF;
-    buf.sputn(bytes, 8);
-}
-
-void writebox(std::streambuf& buf, const char *name, const std::string& box) {
-    write32(buf, box.size() + 8);
-    buf.sputn(name, 4);
-    buf.sputn(box.c_str(), box.size());
-}
-
-void writestring(std::streambuf& buf, const std::string& str) {
-    write16(buf, str.size());
-    buf.sputn(str.c_str(), str.size());
-}
-
-uint64_t read64(std::streambuf *in) {
-    char d[8];
-    in->sgetn(d, 8);
-    return (d[0] & 0xff) * 0x100000000000000ULL + 
-           (d[1] & 0xff) * 0x1000000000000ULL +
-           (d[2] & 0xff) * 0x10000000000ULL +
-           (d[3] & 0xff) * 0x100000000ULL +
-           (d[4] & 0xff) * 0x1000000ULL +
-           (d[5] & 0xff) * 0x10000 +
-           (d[6] & 0xff) * 0x100 +
-           (d[7] & 0xff);
-}
-
-uint32_t read32(std::streambuf *in) {
-    unsigned char d[4];
-    in->sgetn((char*)d, 4);
-    return (d[0] & 0xff) * 0x1000000 + (d[1] & 0xff) * 0x10000 + (d[2] & 0xff) * 0x100 + (d[3] & 0xff);
-}
-
-uint32_t read24(std::streambuf *in) {
-    char d[3];
-    in->sgetn(d, 3);
-    return (d[0] & 0xff) * 0x10000 + (d[1] & 0xff) * 0x100 + (d[2] & 0xff);
-}
-
-uint16_t read16(std::streambuf *in) {
-    char d[2];
-    in->sgetn(d, 2);
-    return (d[0] & 0xff) * 0x100 + (d[1] & 0xff);
-}
-
-std::string readstring(std::streambuf *in) {
-    uint16_t strsz = read16(in);
-    if ( strsz < 256 ) {
-        char buffer[256];
-        in->sgetn(buffer, strsz);
-        return std::string(buffer, strsz);
-    }
-    else {
-        std::vector<char> buffer(strsz);
-        in->sgetn(&buffer[0], strsz);
-        return std::string(&buffer[0], strsz);
-    }
-}
-
 
 void generate_fragments(std::vector<Fragment>& fragments, boost::shared_ptr<mp4::Context>& ctx, double timestep) {
     double limit_ts = timestep;
