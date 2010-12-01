@@ -1,8 +1,9 @@
 import os, re, os.path, sys, subprocess, pickle
 
 
-
-def suffix_check(env):
+#I don't like it -  procedure is quite complex for solved tasks
+def suffix_check(env, boost_names):
+    used_boost_names = boost_names[:]
     libpath = ["/lib", "/usr/lib"]
     if os.getenv("LD_LIBRARY_PATH"):
         libpath.append(os.getenv("LD_LIBRARY_PATH"))
@@ -23,33 +24,32 @@ def suffix_check(env):
 #        if s and s.find("#") == -1:
 #            libpath.append(s)
         
-    boost_mask = re.compile("libboost_\w*(\-[\w\-]*?)?\.so")
-    boost_lib_suffix = ""
-    found = False
+    boost_mask = re.compile(r"libboost_(\w*)(\-[\w\-]*?)?\.so$")
+    #boost_lib_suffix = ""
+    
+    #for boost_name in boost_names:
+    boost_suffixes = {}
     for libdir in libpath:
-        if os.path.exists(libdir):
-            file_list = os.listdir(libdir)
-            for name in file_list:
-                boost_fnd = boost_mask.search(name)
-                if boost_fnd:
-                    #print name, ":", not boost_fnd.group(1)
-                    if not found or (found and (not boost_fnd.group(1) or len(boost_lib_suffix) > len(boost_fnd.group(1)))):
-                        #aghrrr, I love python
-                        if boost_fnd.group(1):
-                            boost_lib_suffix = boost_fnd.group(1)
-                        else:
-                            boost_lib_suffix = ""
-                        found = True
-#break
+        if not os.path.exists(libdir):
+            break
+        
+        for name in os.listdir(libdir):
+            boost_fnd = boost_mask.search(name)
+            if not boost_fnd:
+                continue
             
-            if found:
-                break
-                    
-    #print "boost_lib_suffix is ", boost_lib_suffix
-    if not found:
-        print "Boost suffix not determined"
-        return -1
-    return boost_lib_suffix
+            boost_name_fnd = boost_fnd.group(1)
+            #print name, ":", boost_name_fnd
+            if not boost_name_fnd in used_boost_names:
+                continue
+            
+            
+            found_suffix = "" if not boost_fnd.group(2) else boost_fnd.group(2) 
+            if not boost_suffixes.has_key(boost_name_fnd) or len(found_suffix) < len(boost_suffixes[boost_name_fnd]):
+                boost_suffixes[boost_name_fnd] = str(found_suffix)
+     
+    for ind in range(len(boost_names)):
+        boost_names[ind] += boost_suffixes[boost_names[ind]]               
 
 def run_cmd_silently(command, stdout):
     #command = [arg[0], "-M", arg[1], dirname + "/" + name]
@@ -128,28 +128,35 @@ def header_check(path, env, extra_includes, src_pathes):
 def ver_to_str(int_ver):
     return "%d.%d.%d" % (int_ver // 10000, int_ver // 100 % 100, int_ver % 100) 
 
-def compiler_check(param):
+def compiler_ver_check(context, compiler, version):
+    print "Checking wether compiler version satisfies... ",
+#def compiler_check(param):
     
     #Configure.CheckCXX()
     
     
-    gcc_int_ver = 40100
+#    gcc_int_ver = 40100
 #    for ac_prog in ["g++", "c++", "gpp", "aCC", "CC", "cxx" "cc++"]:# too exotic cl.exe FCC KCC RCC xlC_r xlC:
-    if not param:
-        ac_prog = "g++"
-    else:
-        ac_prog = param
-    (retcode, _) = run_cmd_silently(["which", ac_prog], True) 
-    if retcode == 0:
-        print "Using compiler name ", ac_prog
-#            break
-    else:
-        return None
-            
-    ac_prog = "g++"
-    (ret, out) = run_cmd_silently([ac_prog, "--version"], True)
+#    if not param:
+#        ac_prog = "g++"
+#    else:
+#        ac_prog = param
+#    (retcode, _) = run_cmd_silently(["which", ac_prog], True) 
+#    if retcode == 0:
+#        print "Using compiler name ", ac_prog
+##            break
+#    else:
+#        return None
+#            
+#    ac_prog = "g++"
+    
+    ver_reg = re.match("(\d)\.(\d*)\.(\d*)", version)
+    if ver_reg:
+        gcc_int_ver = int(ver_reg.group(1)) * 10000 + int(ver_reg.group(2)) * 100 + int(ver_reg.group(3)) 
 
-    gcc_ver = re.search("\(.*?\)\s*(\d*)\.(\d*)\.(\d*)", out)
+    (ret, out) = run_cmd_silently([compiler, "--version"], True)
+
+    gcc_ver = re.search(r"\(.*?\)\s*(\d*)\.(\d*)\.(\d*)", out)
     rsl_gcc_ver = 0
     if gcc_ver and len(gcc_ver.groups()) >= 3:
         for i in range(3):
@@ -157,14 +164,22 @@ def compiler_check(param):
     
     #print rsl_gcc_ver, ":", gcc_int_ver
     if rsl_gcc_ver < gcc_int_ver:
+        context.Result(0)
         print "GCC version not satisfied. Need ", ver_to_str(gcc_int_ver), ", has ", ver_to_str(rsl_gcc_ver)
-        return None
+        return False
     else:
-        print "GCC version satisfies"
-        return ac_prog
+        #print "GCC version satisfies"
+        context.Result(1)
+        return True
+
         
-def boost_ver_check(context):
-    boost_int_ver = 13900
+def boost_ver_check(context, version):
+    #boost_int_ver = 13900
+    ver_reg = re.match("(\d)\.(\d*)\.(\d*)", version)
+    if ver_reg:
+        boost_int_ver = int(ver_reg.group(1)) * 10000 + int(ver_reg.group(2)) * 100 + int(ver_reg.group(3)) 
+    
+    #print boost_int_ver
     ver_check = '''
     #include <boost/version.hpp>
     #include <iostream>  
@@ -174,30 +189,31 @@ def boost_ver_check(context):
     }
     '''
     
-    print "Checking for BoostVer..."
+    print "Checking wether boost version satisfies... ",
     result = context.TryCompile(ver_check, '.cc')
     if result == 0:
-        print "Can't find boost headers. Probably boost not installed."
         context.Result(0)
+        print "Can't find boost headers. Probably boost not installed."
         return False
     
     (result, out) = context.TryRun(ver_check, '.cc')
     #print result, ":", out
     if result == 0:
-        print "Unknown error."
         context.Result(0)
+        print "Unknown error."
         return False
     
     #http://www.boost.org/doc/libs/1_39_0/libs/config/doc/html/boost_config/boost_macro_reference.html#boost_config.boost_macro_reference.boost_informational_macros
     
     boost_present_ver = int(out) // 100000 * 10000 + int(out) % 10000
     if boost_present_ver < boost_int_ver:
-        print "Boost version not satisfied. Need ", ver_to_str(boost_int_ver), ", has ", ver_to_str(boost_present_ver)
         context.Result(0)
+        print "Boost version not satisfied. Need ", ver_to_str(boost_int_ver), ", has ", ver_to_str(boost_present_ver)
         return False
 
-    print "Boost version satisfies"
     context.Result(1)
+    #print "Boost version satisfies"
+    
     return True
 
 #code used from AutoconfRecepies : http://scons.org/wiki/AutoconfRecipes
@@ -231,6 +247,7 @@ def lib_check(env, lib_list, checked_libs, chk_conf):
         if checked_lib in chk_lib_list:
             chk_lib_list.remove(checked_lib)
     
+    #print chk_lib_list
     if chk_lib_list != []:
         print "Start checking necessary library files..."
         for lib in chk_lib_list:

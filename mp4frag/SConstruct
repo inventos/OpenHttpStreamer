@@ -9,16 +9,16 @@ Usage:
 """
 
 import os, pickle
-from utils import suffix_check, compiler_check, boost_ver_check, lib_check, checkEndian
+from utils import suffix_check, compiler_ver_check, boost_ver_check, lib_check, checkEndian
 
 
-def save_config(config):
-    fd = open(".config", "w")
+def save_config(filename, config):
+    fd = open(filename, "w")
     pickle.dump(config, fd)
     fd.close()
 
 LIBS_USED = ['program_options', "system"]
-UTIL_LIBS_USED = ['date_time', "thread-mt"]
+UTIL_LIBS_USED = ['date_time', "thread"]
 SRC_LIST = [ 'mp4frag_main.cc', 'mp4frag.cc', 'mp4.cc', 'base64.cc' ]
 
 #SetOption('clean', "-c")
@@ -28,12 +28,12 @@ SRC_LIST = [ 'mp4frag_main.cc', 'mp4frag.cc', 'mp4.cc', 'base64.cc' ]
 #	BUILD_TARGETS.remove("clean")
 	#Exit(0)
 	
-def boost_lib(name):
-	if "thread" in name and "date_time" not in name:
-		name.append("date_time")
+#def boost_lib(name):
+#	if "thread" in name and "date_time" not in name:
+#		name.append("date_time")
    
-	lib_list = ["boost_" + n + config.get('boost_lib_suffix', '') for n in name]
-	return lib_list
+#	lib_list = ["boost_" + n + config.get('boost_lib_suffix', '') for n in name]
+#	return lib_list
 
 try:
     assert "configure" not in COMMAND_LINE_TARGETS
@@ -54,9 +54,10 @@ except:
 
 	boost_lib_suffix = ARGUMENTS.get("boost-suffix", "")
 	if not boost_lib_suffix:
-		boost_lib_suffix = suffix_check(env)
-		if boost_lib_suffix == -1:
-			Exit(1)
+		suffix_check(env, LIBS_USED)
+	else:
+		for ind in range(len(LIBS_USED)):
+			LIBS_USED[ind] += boost_lib_suffix
     
 	prefix = ARGUMENTS.get("prefix", ".")
 
@@ -64,37 +65,39 @@ except:
 		env['CXX'] = ARGUMENTS["compiler"]
 	elif os.getenv("CXX"):
 		env['CXX'] = os.getenv("CXX")
-
-	ret = compiler_check(env.get('CXX', ""))
-	if ret:
-		env['CXX'] = ret
 	else:
-		print "Can't find compiler. Exiting"
-		Exit(1) 
+		env["CXX"] = "g++"
+		
 
 	#tmp_env = chk_conf.Finish()
 
 	checked_libs = []
 	config = {'env': dict(filter(lambda _: _[1], env.items())), 
               'prefix': prefix, 
-              'boost_lib_suffix': boost_lib_suffix,
               "checked_libs" : [],
               "checked_boost_ver" : False,
-              "checked_endian" : False
+              "checked_endian" : False,
+              "checked_compiler" : False,
               }
 
 
 
 tmp_env = Environment()
-#tmp_env["CXX"] = config["env"]["CXX"]
+tmp_env["CXX"] = config["env"]["CXX"]
 for key, value in config['env'].items():
     if type(value) == type([]):
         tmp_env.Append(**{key: value})
     else:
         tmp_env[key] = value
 
-chk_conf = Configure(tmp_env, custom_tests = {"boost_ver_check" : boost_ver_check, "checkEndian" :  checkEndian})
-if not config.get("checked_boost_ver", False) and not chk_conf.boost_ver_check():
+chk_conf = Configure(tmp_env, custom_tests = {"boost_ver_check" : boost_ver_check, "checkEndian" :  checkEndian, "compiler_ver_check" : compiler_ver_check})
+
+if not config.get("checked_compiler", False) and (not chk_conf.CheckCXX() or not chk_conf.compiler_ver_check(config["env"]["CXX"], "4.1.0")): 
+	print "Can't find compiler. Exiting"
+	Exit(1)
+config["checked_compiler"] = True
+
+if not config.get("checked_boost_ver", False) and not chk_conf.boost_ver_check("1.39.0"):
 	Exit(1)
 config["checked_boost_ver"] = True
 
@@ -105,10 +108,10 @@ if endian == "little":
 elif endian == "big":
 	config["env"]["CPPDEFINES"].update({'BIG_ENDIAN': 1})
 	
-if not lib_check(tmp_env, boost_lib(LIBS_USED), config["checked_libs"], chk_conf):
+if not lib_check(tmp_env, ["boost_" + x for x in LIBS_USED], config["checked_libs"], chk_conf):
 	Exit(1)
 	
-save_config(config)             
+save_config(".config", config)             
 
 
 
@@ -153,14 +156,14 @@ except KeyError:
 
 if not config.get("build", "") == variants:
     config["build"] = variants
-    save_config(config)
+    save_config(".config", config)
 
 if "prefix" in ARGUMENTS:
     config["prefix"] = ARGUMENTS["prefix"]
 else:
 	config["prefix"] = "/usr/local/bin"
 	
-save_config(config)
+save_config(".config", config)
 
 if variants == 'all':
     variants = targets.keys()
@@ -185,7 +188,7 @@ for key in variants:
 	
 	#print os.getcwd()
 	
-	frag_env.AppendUnique(LIBS = boost_lib(LIBS_USED))
+	frag_env.AppendUnique(LIBS = config["checked_libs"])
 	VariantDir(dir, ".")
 	cur_src_list = [dir + "/" + src for src in SRC_LIST]
 	mp4frag = frag_env.Program(dir + "/mp4frag", cur_src_list )
@@ -193,56 +196,83 @@ for key in variants:
 	
 	if len(variants) == 1 or (len(variants) > 1 and key == "release"):	
 		frag_env.Install(config["prefix"], mp4frag)
-#	print "DEFAULT_TARGETS is", map(str, DEFAULT_TARGETS)
-#	print "BUILD_TARGETS is", map(str, BUILD_TARGETS)
+
+if os.path.exists("libutility"):
+#if not os.path.exists("libutility"):
+	try:
+		assert "configure" not in COMMAND_LINE_TARGETS
+		fd = open(".lu_config")
+		lu_config = pickle.load(fd)
+		fd.close()
+	except:
+		backend = ARGUMENTS.get("backend", "libevent")
+		libutility_variants = ARGUMENTS.get("libutility_build", variants)
+		libsuffix = "lib"
+		env = {}
+		env["CPPPATH"] = ["#/libutility"]
+		env["CXXFLAGS"] = ['-pipe', '-Woverloaded-virtual', '-Wall', '-Werror', '-Wno-deprecated', '-std=c++0x']
+		
+		boost_lib_suffix = ARGUMENTS.get("boost-suffix", "")
+		if not boost_lib_suffix:
+			suffix_check(env, UTIL_LIBS_USED)
+		
+		env["LIBS"] = ["boost_" + x for x in UTIL_LIBS_USED]
+		env["LIBPATH"] = [libsuffix]
+		if backend == "libevent":
+			env["LIBS"].append('event'),
+			env["CPPDEFINES"] = {"LIBEVENT_REACTOR": 1}
+		else:
+			env["CPPDEFINES"] = {"EPOLL_REACTOR": 1}
+	     
+		lu_config = {
+			  'env': dict(filter(lambda _: _[1], env.items())),
+              "checked_libs" : [],
+              "backend" : backend,
+              "libutility_variants": libutility_variants,
+              "libsuffix": libsuffix,
+#              "boost-suffix" : boost_
+             }
+
+		save_config(".lu_config", config)
+		
+	tmp_env = Environment()
+	tmp_env["CXX"] = config["env"]["CXX"]
+	for key, value in lu_config['env'].items():
+		#print "One:",key, ":", value
+		if type(value) == type([]) or type(value) == type({}):
+			tmp_env.Append(**{key: value})
+		else:
+			tmp_env[key] = value
 	
-#	mp4env = env.Clone()
-#	mp4env.Append(LIBS = boost_lib(LIBS_USED))
-#	mp4frag = mp4env.Program('mp4frag', [ 'mp4frag.cc', 'mp4.cc', 'base64.cc' ] )
+	chk_conf = Configure(tmp_env)#, custom_tests = {"boost_ver_check" : boost_ver_check, "checkEndian" :  checkEndian, "compiler_ver_check" : compiler_ver_check})
+	if not lib_check(tmp_env, env["LIBS"], lu_config["checked_libs"], chk_conf):
+		Exit(1)
+	env["LIBS"] = lu_config["checked_libs"]
+	save_config(".lu_config", config)
 
+	#print config				
+	for key in lu_config["libutility_variants"]:
+		builddir = "libutility/" + "." + key
+		libbuilddir = os.path.join(builddir, lu_config["libsuffix"])
+	
+		util_env = targets[key].Clone()
 
-#	mp4env.Install(config["prefix"], mp4frag)
-#	mp4env.Alias('install', config["prefix"])
-
-backend = ARGUMENTS.get("backend", "libevent")
-libutility_variants = ARGUMENTS.get("libutility_build", variants)
-
-for key in libutility_variants:
-    builddir = "libutility/" + "." + key
-    libsuffix = "lib"
-    libbuilddir = os.path.join(builddir, libsuffix)
-
-    util_env = targets[key].Clone()
-
-    # append common options to all variants:
-    util_env.AppendUnique(
-        #CPPPATH = ["../../../libutility"],
-        CPPPATH = ["#/libutility"],
-        CXXFLAGS = ['-pipe', '-Woverloaded-virtual', '-Wall', '-Werror', '-Wno-deprecated', '-std=c++0x'],
-        LIBPATH = [libsuffix],
-        LIBS = UTIL_LIBS_USED,
-    )
-    #env.Append
-
-#    for key, value in config['env'].items():
-#        if type(value) == type([]):
-#            env.Append(**{key: value})
-#        else:
-#            env[key] = value
-
-    if backend == "libevent":
-        util_env.AppendUnique(LIBS = ['event'],
-                   CPPDEFINES = {"LIBEVENT_REACTOR": 1}
-                  )
-    else:
-        util_env.AppendUnique(CPPDEFINES = {"EPOLL_REACTOR": 1})
-
-    Export('util_env')
-    
-    import os
-    print os.getcwd()
-    
-    SConscript("libutility/utility/src/SConscript", variant_dir = libbuilddir)
-
-#    if "examples" in COMMAND_LINE_TARGETS:
-#        SConscript("examples/SConscript", build_dir = builddir )
+		for key, value in lu_config['env'].items():
+			#print "One:",key, ":", value
+			if type(value) == type([]) or type(value) == type({}):
+				util_env.Append(**{key: value})
+			else:
+				util_env[key] = value
+	
+		save_config(".lu_config", lu_config)
+		Export('util_env')
+	    
+	    #import os
+	    #print os.getcwd()
+	    
+		SConscript("libutility/utility/src/SConscript", variant_dir = libbuilddir)
+	
+	#    if "examples" in COMMAND_LINE_TARGETS:
+	#        SConscript("examples/SConscript", build_dir = builddir )
+else:
+	print "No libutility found"
