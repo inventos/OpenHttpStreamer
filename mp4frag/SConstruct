@@ -245,10 +245,10 @@ if os.path.exists("libutility"):
 			tmp_env[key] = value
 	
 	chk_conf = Configure(tmp_env)#, custom_tests = {"boost_ver_check" : boost_ver_check, "checkEndian" :  checkEndian, "compiler_ver_check" : compiler_ver_check})
-	if not lib_check(tmp_env, env["LIBS"], lu_config["checked_libs"], chk_conf):
+	if not lib_check(tmp_env, lu_config["env"]["LIBS"], lu_config["checked_libs"], chk_conf):
 		Exit(1)
-	env["LIBS"] = lu_config["checked_libs"]
-	save_config(".lu_config", config)
+	lu_config["env"]["LIBS"] = lu_config["checked_libs"]
+	save_config(".lu_config", lu_config)
 
 	#print config				
 	for key in lu_config["libutility_variants"]:
