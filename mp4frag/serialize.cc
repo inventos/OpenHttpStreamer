@@ -35,3 +35,8 @@ std::string readstring(std::streambuf *in) {
     }
 }
 
+std::string readstring(const char *d) {
+    uint16_t strsz = read16(d);
+    return std::string(d + 2, strsz);
+}
+
