@@ -60,7 +60,6 @@ def frag_build(env, build_dir, prefix, need_install):
 	mp4frag = env.Program(build_dir + "/mp4frag", cur_src_list )
 	env.Alias('install', prefix)
 	
-	#if len(variants) == 1 or (len(variants) > 1 and key == "release"):
 	if need_install:	
 		env.Install(prefix, mp4frag)
 
@@ -114,24 +113,19 @@ def rename_this_function(variants, config_prefix, subroutines, compiler_ver, boo
 	need_install = True
 	for variant in variants:
 		dir = "." + variant
-		#if True:
 		try:
 			assert "configure" not in COMMAND_LINE_TARGETS
-			#assert "configure" in COMMAND_LINE_TARGETS
-			#load_config(".config" + dir, env)
 			dump_config = load_config(config_prefix + dir)
 			env = Environment()
 			for key in ENV_SETPARAMS:#, val in env.Dictionary().items():
 				env[key] = dump_config["env"][key]
 			prefix = dump_config["prefix"]
-		#if False:
 		except:
 			env = TARGETS[variant]
 			env.Append(CPPPATH = filter(None, ARGUMENTS.get("includes", "").split(",")))
 			env.Append(CPPPATH = "libutility")
 			
 			env.Append(LIBPATH = filter(None, ARGUMENTS.get("libpath", "").split(",")))
-			#env['LIBPATH'] = filter(None, ARGUMENTS.get("libpath", "").split(","))
 			env.Append(CPPDEFINES = {'BOOST_SP_USE_QUICK_ALLOCATOR': 1,})
 			env.Append(CXXFLAGS = ['-Woverloaded-virtual', '-Wall'])
 			env.Append(LIBPATH = '/usr/local/lib')
@@ -150,11 +144,7 @@ def rename_this_function(variants, config_prefix, subroutines, compiler_ver, boo
 	    		 "lib_check" : lib_check,
 	    		}
 	    	)
-	    	
-			#if subroutines.has_key("prepare_boost_libs"):
-			#	prepare_boost_libs = subroutines["prepare_boost_libs"] 
-			#	prepare_boost_libs(env, boost_libs_used)
-			
+	
 			cur_libs_used = libs_used[:]
 			if subroutines.has_key("extra_init"):
 				extra_init = subroutines["extra_init"]
@@ -199,8 +189,6 @@ def rename_this_function(variants, config_prefix, subroutines, compiler_ver, boo
 			#print "Configured"
         
 		if "printconf" in COMMAND_LINE_TARGETS or "configure" in COMMAND_LINE_TARGETS:
-			#import pprint
-			#pprint.pprint(env)
 			print "Dumping configure:"
 			for key in ENV_SETPARAMS:
 				print key, "=", env.Dictionary()[key]
@@ -212,7 +200,6 @@ def rename_this_function(variants, config_prefix, subroutines, compiler_ver, boo
 		build(configures[config_prefix + variant], "." + variant, prefix, need_install) 
 		need_install = False
 
-#frag_subroutines = {"prepare_boost_libs" : frag_prepare_boost_libs, "build" : frag_build}
 frag_subroutines = {"extra_init" : frag_extra_init, "build" : frag_build}
 print "Processing mp4fragmenter"
 rename_this_function(variants, ".config", frag_subroutines, "4.1.0", FRAG_BOOST_LIBS_USED[:], [])
