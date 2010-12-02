@@ -23,22 +23,17 @@ def load_config(filename):
 	fd.close()
 	return config
 
-DEFAUT_TARGET = "release"
+DEFAULT_TARGET = "release"
 ENV_SETPARAMS = ["CXXFLAGS", "CPPDEFINES", "LINKFLAGS", "CPPPATH", "LIBPATH", "CXX", "LIBS"]   
 TARGETS = {
     "release":   Environment(
-        CXXFLAGS = ["-O6", "-fomit-frame-pointer"], 
-        CPPDEFINES = {'DEBUG': 1, 'WITH_STOPPER': 1, 'NO_THRIFT':1, 'NDEBUG': 1}, 
+        CXXFLAGS = ["-O6"], 
         ),
     "debug":   Environment(
-        CXXFLAGS = ["-O0", "-g", "-fkeep-inline-functions", "-fmerge-all-constants"], 
-        CPPDEFINES = {'DEBUG': 1, 'WITH_STOPPER': 1, 'NO_THRIFT':1},
-        #LINKFLAGS = ["-pg"] 
+        CXXFLAGS = ["-O0", "-g", "-fkeep-inline-functions"], 
         ),
     "profile": Environment(
         CXXFLAGS = ["-O6", "-g", "-pg"],
-        CPPDEFINES = {'DEBUG': 1, 'NDEBUG': 1, 'WITH_STOPPER': 1},
-        LINKFLAGS = ["-pg"]
         ),
 }
 
@@ -46,9 +41,16 @@ FRAG_BOOST_LIBS_USED = ['program_options', "system"]
 UTIL_BOOST_LIBS_USED = ['date_time', "thread"]
 SRC_LIST = [ 'mp4frag_main.cc', 'mp4frag.cc', 'mp4.cc', 'base64.cc' ]
 
-variants = ARGUMENTS.get("build", DEFAUT_TARGET).split(",")
+if ARGUMENTS.has_key("build"):
+	if ARGUMENTS["build"] == 'all':
+		variants = TARGETS.keys()
+	else:
+		variants = [variant for variant in ARGUMENTS["build"].split(",") if variant in TARGETS]
+else:
+	variants = [DEFAULT_TARGET]
+	 
 if ARGUMENTS.has_key("lubuild"):
-	luvariants = ARGUMENTS["lubuild"]
+	luvariants = [variant for variant in ARGUMENTS["lubuild"].split(",") if variant in TARGETS]
 else:
 	luvariants = variants
 
@@ -65,14 +67,14 @@ def frag_build(env, build_dir, prefix, need_install):
 def util_build(env, build_dir, prefix, need_install):
 	libsuffix = "lib"
 	builddir = "libutility/" + build_dir
-	libbuilddir = os.path.join(builddir, "libsuffix")
+	libbuilddir = os.path.join(builddir, libsuffix)
 	Export('env')
 	SConscript("libutility/utility/src/SConscript", variant_dir = libbuilddir)
 	#if "examples" in COMMAND_LINE_TARGETS:
 	#	SConscript("libutility/examples/SConscript", variant_dir = builddir )
 	
 
-def util_extra_init(env, libs_used):
+def util_extra_init(variant, env, libs_used):
 	backend = ARGUMENTS.get("backend", "libevent")
 	if backend == "libevent":
 		libs_used.append('event'),
@@ -80,9 +82,21 @@ def util_extra_init(env, libs_used):
 	else:
 		env.Append(CPPDEFINES = {"EPOLL_REACTOR": 1})
 	
+	if variant == "profile" or variant == "release":
+		env.Append(CPPDEFINES = {'NDEBUG': 1})
+
+	if variant == "profile" or variant == "debug":
+		env.Append(CPPDEFINES = {'DEBUG': 1, 'WITH_STOPPER': 1})
+		env.Append(LINKFLAGS = ["-pg"])
+	if variant == "release":
+		env.Append(CXXFLAGS = ["-fomit-frame-pointer"])
+	
 	env.Append(CPPPATH = "#/libutility")
 	env.Append(CXXFLAGS = ['-pipe', '-Werror', '-Wno-deprecated', '-std=c++0x'])
 
+def frag_extra_init(variant, env, libs_used):
+	env.Append(CPPDEFINES = {'DEBUG': 1, 'NO_THRIFT':1, 'WITH_STOPPER': 1})
+	env.Append(CXXFLAGS = ["-fmerge-all-constants"])
 
 def prepare_boost_libs(env, libs_used):
     libpath = ["/lib", "/usr/lib"]
@@ -112,7 +126,6 @@ def rename_this_function(variants, config_prefix, subroutines, compiler_ver, boo
 			prefix = dump_config["prefix"]
 		#if False:
 		except:
-			print 
 			env = TARGETS[variant]
 			env.Append(CPPPATH = filter(None, ARGUMENTS.get("includes", "").split(",")))
 			env.Append(CPPPATH = "libutility")
@@ -142,12 +155,14 @@ def rename_this_function(variants, config_prefix, subroutines, compiler_ver, boo
 			#	prepare_boost_libs = subroutines["prepare_boost_libs"] 
 			#	prepare_boost_libs(env, boost_libs_used)
 			
+			cur_libs_used = libs_used[:]
 			if subroutines.has_key("extra_init"):
 				extra_init = subroutines["extra_init"]
-				extra_init(env, libs_used)
+				extra_init(variant, env, cur_libs_used)
 				
-			prepare_boost_libs(env, boost_libs_used)
-			libs_used.extend(boost_libs_used)
+			cur_boost_libs_used = boost_libs_used[:]
+			prepare_boost_libs(env, cur_boost_libs_used)
+			cur_libs_used.extend(cur_boost_libs_used)
 				
 			if ARGUMENTS.has_key("compiler"):
 				chk_conf.env['CXX'] = ARGUMENTS["compiler"]
@@ -169,24 +184,28 @@ def rename_this_function(variants, config_prefix, subroutines, compiler_ver, boo
 			if not chk_conf.boost_ver_check("1.39.0"):
 				Exit(1)
 			
-			if not lib_check(chk_conf, libs_used):
+			if not lib_check(chk_conf, cur_libs_used):
 				Exit(1)
 				
-			chk_conf.env["LIBS"] = libs_used
+			chk_conf.env["LIBS"] = cur_libs_used
             
 			env = chk_conf.Finish()
 			dump_env = {}
-			for key in ENV_SETPARAMS:#, val in env.Dictionary().items():
+			for key in ENV_SETPARAMS:
 				dump_env[key] = env.Dictionary()[key]
-				#print "Types:", type(key)#, ":", type(val) 
+ 
 				
 			save_config(config_prefix + dir, {"env" : dump_env, "prefix" : prefix})
 			#print "Configured"
         
 		if "printconf" in COMMAND_LINE_TARGETS or "configure" in COMMAND_LINE_TARGETS:
-			import pprint
-			pprint.pprint(env)
-			Exit(0)
+			#import pprint
+			#pprint.pprint(env)
+			print "Dumping configure:"
+			for key in ENV_SETPARAMS:
+				print key, "=", env.Dictionary()[key]
+ 
+			continue
      
 		build = subroutines["build"]
 		configures[config_prefix + variant] = env.Clone()
@@ -194,13 +213,15 @@ def rename_this_function(variants, config_prefix, subroutines, compiler_ver, boo
 		need_install = False
 
 #frag_subroutines = {"prepare_boost_libs" : frag_prepare_boost_libs, "build" : frag_build}
-frag_subroutines = {"build" : frag_build}
+frag_subroutines = {"extra_init" : frag_extra_init, "build" : frag_build}
 print "Processing mp4fragmenter"
-rename_this_function(variants, ".config", frag_subroutines, "4.1.0", FRAG_BOOST_LIBS_USED, [])
+rename_this_function(variants, ".config", frag_subroutines, "4.1.0", FRAG_BOOST_LIBS_USED[:], [])
 
 print "Processing libutility"
 if os.path.exists("libutility"):
 	util_subroutines = {"extra_init" : util_extra_init, "build" : util_build}
-	rename_this_function(luvariants, ".luconfig", util_subroutines, "4.3.0", UTIL_BOOST_LIBS_USED, [])
+	rename_this_function(luvariants, ".luconfig", util_subroutines, "4.3.0", UTIL_BOOST_LIBS_USED[:], [])
 
+if "printconf" in COMMAND_LINE_TARGETS or "configure" in COMMAND_LINE_TARGETS:
+	Exit(0)
 #os.remove("config.log")
