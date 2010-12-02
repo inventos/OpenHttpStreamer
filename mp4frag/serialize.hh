@@ -71,9 +71,7 @@ inline void writestring(std::streambuf& buf, const std::string& str) {
     buf.sputn(str.c_str(), str.size());
 }
 
-inline uint64_t read64(std::streambuf *in) {
-    char d[8];
-    in->sgetn(d, 8);
+inline uint64_t read64(const char *d) {
     return (d[0] & 0xff) * 0x100000000000000ULL + 
            (d[1] & 0xff) * 0x1000000000000ULL +
            (d[2] & 0xff) * 0x10000000000ULL +
@@ -84,24 +82,44 @@ inline uint64_t read64(std::streambuf *in) {
            (d[7] & 0xff);
 }
 
-inline uint32_t read32(std::streambuf *in) {
-    unsigned char d[4];
-    in->sgetn((char*)d, 4);
+inline uint64_t read64(std::streambuf *in) {
+    char d[8];
+    in->sgetn(d, 8);
+    return read64(d);
+}
+
+inline uint32_t read32(const char *d) {
     return (d[0] & 0xff) * 0x1000000 + (d[1] & 0xff) * 0x10000 + (d[2] & 0xff) * 0x100 + (d[3] & 0xff);
+}
+
+inline uint32_t read32(std::streambuf *in) {
+    char d[4];
+    in->sgetn(d, 4);
+    return read32(d);
+}
+
+inline uint32_t read24(const char *d) {
+    return (d[0] & 0xff) * 0x10000 + (d[1] & 0xff) * 0x100 + (d[2] & 0xff);
 }
 
 inline uint32_t read24(std::streambuf *in) {
     char d[3];
     in->sgetn(d, 3);
-    return (d[0] & 0xff) * 0x10000 + (d[1] & 0xff) * 0x100 + (d[2] & 0xff);
+    return read32(d);
+}
+
+inline uint16_t read16(const char *d) {
+    return (d[0] & 0xff) * 0x100 + (d[1] & 0xff);
 }
 
 inline uint16_t read16(std::streambuf *in) {
     char d[2];
     in->sgetn(d, 2);
-    return (d[0] & 0xff) * 0x100 + (d[1] & 0xff);
+    return read16(d);
 }
 
+std::string readstring(const char *);
 std::string readstring(std::streambuf *in);
+
 
 #endif

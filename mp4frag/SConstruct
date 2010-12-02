@@ -17,8 +17,8 @@ def save_config(config):
     pickle.dump(config, fd)
     fd.close()
 
-LIBS_USED = ['program_options', "system"]
-SRC_LIST = [ 'mp4frag_main.cc', 'mp4frag.cc', 'mp4.cc', 'base64.cc', 'serialize.cc' ]
+LIBS_USED = ['program_options', "system", "filesystem"]
+SRC_LIST = [ 'mp4frag_main.cc', 'mp4frag.cc', 'mp4.cc', 'base64.cc', 'serialize.cc', 'mapping.cc' ]
 
 #SetOption('clean', "-c")
 #if "clean" in COMMAND_LINE_TARGETS:
