@@ -68,6 +68,10 @@ void parse_options(int argc, char **argv) {
     
 }
 
+boost::shared_ptr<Mapping> create_mapping(const std::string& filename) {
+    return boost::shared_ptr<Mapping>(new Mapping(filename.c_str()));
+}
+
 #include <sys/time.h>
 
 int main(int argc, char **argv) try {
@@ -115,7 +119,7 @@ int main(int argc, char **argv) try {
                 std::string fragment_basename = std::string("Seg1-Frag") + boost::lexical_cast<std::string>(fragment);
                 bfs::path fragment_file = mediadir / fragment_basename;
                 if ( out.open(fragment_file.string().c_str(), std::ios::out | std::ios::binary | std::ios::trunc) ) {
-                    get_fragment(&out, ix, fragment - 1, index.data(), index.size());
+                    get_fragment(&out, ix, fragment - 1, index.data(), index.size(), create_mapping);
                     if ( !out.close() ) {
                         throw std::runtime_error("Error closing " + fragment_file.string());
                     }

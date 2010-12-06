@@ -2,6 +2,7 @@
 #define __mp4frag_hh__ac9d6258_0bd9_4b2f_b934_984389f48934
 
 #include "mapping.hh"
+#include <boost/function.hpp>
 #include <boost/shared_ptr.hpp>
 #include <vector>
 #include <string>
@@ -60,6 +61,8 @@ void serialize_fragment(std::streambuf *sb, const boost::shared_ptr<Media>& medi
 
 void serialize(std::streambuf *sbuf, const std::vector< boost::shared_ptr<Media> >& medialist);
 void get_fragment(std::streambuf *out, 
-                  unsigned medianum, unsigned fragnum, const char *index, size_t indexsize);
+                  unsigned medianum, unsigned fragnum, const char *index, size_t indexsize,
+                  const boost::function<boost::shared_ptr<Mapping> (const std::string&)>& mfactory
+                  );
 
 #endif

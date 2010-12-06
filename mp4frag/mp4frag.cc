@@ -323,7 +323,9 @@ void serialize(std::streambuf *sbuf, const std::vector< boost::shared_ptr<Media>
 
 
 void get_fragment(std::streambuf *out, 
-                  unsigned medianum, unsigned fragnum, const char *index, size_t indexsize) {
+                  unsigned medianum, unsigned fragnum, const char *index, size_t indexsize,
+                  const boost::function<boost::shared_ptr<Mapping> (const std::string&)>& mapping_factory
+                  ) {
     if ( memcmp(index, "mp4frag", 7) != 0 || index[7] != 1 ) {
         throw std::runtime_error("Wrong file format");
     }
@@ -362,15 +364,13 @@ void get_fragment(std::streambuf *out,
     out->sputn("mdat", 4);
     write_fragment_prefix(out, videoextra, audioextra, fragment_ts);
 
-    // XXX TO BE OPTIMIZED
-    Mapping mapping(filename.c_str());
-    // XXX
+    boost::shared_ptr<Mapping> mapping = mapping_factory(filename);
     for ( unsigned iii = 0; iii < nsamples; ++iii ) {
         uint32_t offset = read32(fragment);
         uint32_t size = read32(fragment + 4);
-        if ( mapping.size() <= offset + size ) {
+        if ( mapping->size() <= offset + size ) {
             std::stringstream msg;
-            msg << "Out of file: mapping.size= " << mapping.size() << ", offset=" << offset << ", size=" << size;
+            msg << "Out of file: mapping.size= " << mapping->size() << ", offset=" << offset << ", size=" << size;
             throw std::runtime_error(msg.str());
         }
         uint32_t timestamp = read32(fragment + 8);
@@ -379,10 +379,10 @@ void get_fragment(std::streambuf *out,
         fragment += 16;
         if ( flags ) {
             write_video_packet(out, flags & 2, false, composition_offset, timestamp,
-                               mapping.data() + offset, size);
+                               mapping->data() + offset, size);
         }
         else {
-            write_audio_packet(out, false, timestamp, mapping.data() + offset, size);
+            write_audio_packet(out, false, timestamp, mapping->data() + offset, size);
         }
     }
 }
