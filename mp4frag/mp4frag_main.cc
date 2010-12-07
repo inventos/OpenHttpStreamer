@@ -39,6 +39,7 @@ namespace {
     std::string video_id("some_video");
     std::vector<bfs::path> srcfiles;
     bool produce_template = false;
+    bool manifest_only = false;
     int fragment_duration;
 }
 
@@ -53,6 +54,7 @@ void parse_options(int argc, char **argv) {
       ("manifest", po::value<bfs::path>(&manifest_name)->default_value("manifest.f4m"), "manifest file name")
       ("fragmentduration", po::value<int>(&fragment_duration)->default_value(3000), "single fragment duration, ms")
       ("template", "make template files instead of full fragments")
+      ("manifest-only", "make manifest only")
     ;
 
     po::variables_map vm;
@@ -65,6 +67,7 @@ void parse_options(int argc, char **argv) {
     }
 
     produce_template = vm.count("template") != 0;
+    manifest_only = vm.count("manifest-only") != 0;
     
 }
 
@@ -94,6 +97,7 @@ int main(int argc, char **argv) try {
 
     std::cerr << "Parsed in " << diff << " seconds\n";
 
+    if ( !manifest_only ) {
     if ( produce_template ) {
         std::filebuf out;
         std::string indexname = (manifest_name.parent_path() / "index").string();
@@ -153,6 +157,7 @@ int main(int argc, char **argv) try {
                 }
             }
         }
+    }
     }
 
     std::filebuf manifest_filebuf;
