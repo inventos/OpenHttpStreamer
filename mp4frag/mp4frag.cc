@@ -34,6 +34,7 @@ using namespace boost::system;
 void generate_fragments(std::vector<Fragment>& fragments, boost::shared_ptr<mp4::Context>& ctx, double timestep) {
     double limit_ts = timestep;
     double now;
+    double timebase = 0;
     unsigned nsample = 0;
     fragments.clear();
 
@@ -45,6 +46,10 @@ void generate_fragments(std::vector<Fragment>& fragments, boost::shared_ptr<mp4:
         now = si->timestamp();
 
         if ( si->_video && si->_keyframe && now >= limit_ts ) {
+            if ( fragments.size() ) {
+                fragments.back()._duration = now - timebase;
+                timebase = now;
+            }
             fragments.push_back(Fragment());
             samplelist = &(fragments.back()._samples);
             limit_ts = now + timestep;
@@ -56,6 +61,9 @@ void generate_fragments(std::vector<Fragment>& fragments, boost::shared_ptr<mp4:
                                           si->_keyframe));
         fragments.back()._duration += now;
         fragments.back()._totalsize += si->_sample_size + 11 + (si->_video ? 5 : 2) + 4;
+    }
+    if ( fragments.size() ) {
+        fragments.back()._duration = ctx->duration() - timebase;
     }
 }
 
