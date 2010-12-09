@@ -54,7 +54,7 @@ void parse_options(int argc, char **argv) {
       ("manifest", po::value<bfs::path>(&manifest_name)->default_value("manifest.f4m"), "manifest file name")
       ("fragmentduration", po::value<int>(&fragment_duration)->default_value(3000), "single fragment duration, ms")
       ("template", "make template files instead of full fragments")
-      ("manifest-only", "make manifest only")
+      ("nofragments", "make manifest only")
     ;
 
     po::variables_map vm;
@@ -67,7 +67,7 @@ void parse_options(int argc, char **argv) {
     }
 
     produce_template = vm.count("template") != 0;
-    manifest_only = vm.count("manifest-only") != 0;
+    manifest_only = vm.count("nofragments") != 0;
     
 }
 
