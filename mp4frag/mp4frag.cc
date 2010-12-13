@@ -262,7 +262,7 @@ void serialize(std::streambuf *sbuf, const std::vector< boost::shared_ptr<Media>
     std::vector< std::vector<uint32_t> > fragments_by_media;
     BOOST_FOREACH(const boost::shared_ptr<Media>& pmedia, medialist) {
         fragmentdir_map.push_back(header_size);
-        header_size += 2 + pmedia->medianame.size() +
+        header_size += 2 + pmedia->medianame.size() + 1 /* terminating 0 */ +
                        2 + pmedia->videoextra.size() +
                        2 + pmedia->audioextra.size() +
                        2 + pmedia->fragments.size() * 4;
@@ -283,7 +283,7 @@ void serialize(std::streambuf *sbuf, const std::vector< boost::shared_ptr<Media>
     }
 
     sbuf->sputn(signature, strlen(signature));
-    sbuf->sputc(1); // version
+    sbuf->sputc(2); // version
     write16(*sbuf, nmedia);
     for ( unsigned n = 0; n < nmedia; ++n ) {
         write32(*sbuf, fragmentdir_map[n]);
@@ -291,7 +291,7 @@ void serialize(std::streambuf *sbuf, const std::vector< boost::shared_ptr<Media>
 
     for ( unsigned n = 0; n < nmedia; ++n ) {
         const boost::shared_ptr<Media>& pmedia = medialist[n];
-        writestring(*sbuf, pmedia->medianame);
+        write16(*sbuf, pmedia->medianame.size() + 1); sbuf->sputn(pmedia->medianame.c_str(), pmedia->medianame.size() + 1 /* 0-terminated string */);
         writestring(*sbuf, pmedia->videoextra);
         writestring(*sbuf, pmedia->audioextra);
         write16(*sbuf, pmedia->fragments.size());
