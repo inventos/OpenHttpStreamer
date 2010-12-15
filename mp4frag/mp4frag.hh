@@ -8,6 +8,7 @@
 #include <string>
 #include <streambuf>
 #include <memory>
+#include <stdint.h>
 
 struct SampleEntry {
     off_t _offset;
