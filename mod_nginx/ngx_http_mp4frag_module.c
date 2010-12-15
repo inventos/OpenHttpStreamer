@@ -321,7 +321,7 @@ static ngx_int_t ngx_http_mp4frag_handler(ngx_http_request_t *r)
     write32(resp_body, totalsize);
     memcpy(resp_body + 4, "mdat", 4);
 
-    CHECKMAP(16 * nsamples);
+    CHECKMAP(16 * nsamples - 1); /* check if the last byte still inside the index */
 
     /* fragment timestamp is equal to first sample timestamp */
     resp_body = write_fragment_prefix(resp_body + 8, &videocodecdata, &audiocodecdata, get32(indexptr + 8));
