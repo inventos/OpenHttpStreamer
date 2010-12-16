@@ -1,11 +1,14 @@
 #ifndef __mp4frag_hh__ac9d6258_0bd9_4b2f_b934_984389f48934
 #define __mp4frag_hh__ac9d6258_0bd9_4b2f_b934_984389f48934
 
-#include <stdint.h>
+#include "mapping.hh"
+#include <boost/function.hpp>
 #include <boost/shared_ptr.hpp>
 #include <vector>
 #include <string>
 #include <streambuf>
+#include <memory>
+#include <stdint.h>
 
 struct SampleEntry {
     off_t _offset;
@@ -47,21 +50,20 @@ struct Media {
     unsigned width;
     unsigned height;
     double duration;
-    const char *mapping;
-    off_t filesize;
+    std::auto_ptr<Mapping> mapping;
     std::vector<Fragment> fragments;
     std::string videoextra, audioextra;
-
-    Media() : mapping(0) {}
-    ~Media();
 };
 
 boost::shared_ptr<Media> make_fragments(const std::string& filename, unsigned fragment_duration);
 void get_manifest(std::streambuf* sb, const std::vector< boost::shared_ptr<Media> >& medialist,
                   const std::string& video_id);
 void serialize_fragment(std::streambuf *sb, const boost::shared_ptr<Media>& media, unsigned fragnum);
-void serialize_fragment_to_template(std::streambuf *sb, const boost::shared_ptr<Media>& media, unsigned fragnum);
-void serialize_fragment_from_template(std::streambuf *inbuf, std::streambuf *outbuf, const char *mapping);
 
+void serialize(std::streambuf *sbuf, const std::vector< boost::shared_ptr<Media> >& medialist);
+void get_fragment(std::streambuf *out, 
+                  unsigned medianum, unsigned fragnum, const char *index, size_t indexsize,
+                  const boost::function<boost::shared_ptr<Mapping> (const std::string&)>& mfactory
+                  );
 
 #endif

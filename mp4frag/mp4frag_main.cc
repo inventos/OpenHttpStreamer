@@ -32,12 +32,14 @@
 
 using namespace boost::system;
 namespace bfs = boost::filesystem;
+using boost::lexical_cast;
 
 namespace {
     bfs::path manifest_name = "manifest.f4m";
     std::string video_id("some_video");
     std::vector<bfs::path> srcfiles;
     bool produce_template = false;
+    bool manifest_only = false;
     int fragment_duration;
 }
 
@@ -52,6 +54,7 @@ void parse_options(int argc, char **argv) {
       ("manifest", po::value<bfs::path>(&manifest_name)->default_value("manifest.f4m"), "manifest file name")
       ("fragmentduration", po::value<int>(&fragment_duration)->default_value(3000), "single fragment duration, ms")
       ("template", "make template files instead of full fragments")
+      ("nofragments", "make manifest only")
     ;
 
     po::variables_map vm;
@@ -64,7 +67,12 @@ void parse_options(int argc, char **argv) {
     }
 
     produce_template = vm.count("template") != 0;
+    manifest_only = vm.count("nofragments") != 0;
     
+}
+
+boost::shared_ptr<Mapping> create_mapping(const std::string& filename) {
+    return boost::shared_ptr<Mapping>(new Mapping(filename.c_str()));
 }
 
 #include <sys/time.h>
@@ -78,8 +86,8 @@ int main(int argc, char **argv) try {
     gettimeofday(&then, 0);
     BOOST_FOREACH(bfs::path& srcfile, srcfiles) {
         boost::shared_ptr<Media> pmedia = make_fragments(srcfile.string(), fragment_duration);
-        pmedia->medianame = srcfile.filename() + ".d";
         fileinfo_list.push_back(pmedia);
+        pmedia->medianame = bfs::complete(srcfile).string();
     }
     gettimeofday(&now, 0);
     double diff = now.tv_sec - then.tv_sec + 1e-6*(now.tv_usec - then.tv_usec);
@@ -89,33 +97,67 @@ int main(int argc, char **argv) try {
 
     std::cerr << "Parsed in " << diff << " seconds\n";
 
-    BOOST_FOREACH(boost::shared_ptr<Media>& pmedia, fileinfo_list) {
-        bfs::path mediadir = manifest_name.parent_path() / pmedia->medianame;
-        if ( mkdir(mediadir.string().c_str(), 0755) == -1 && errno != EEXIST ) {
-            throw system_error(errno, get_system_category(), "mkdir " + mediadir.string());
-        }
-        for ( unsigned fragment = 1; fragment <= pmedia->fragments.size(); ++fragment ) {
-            std::filebuf out;
-            std::string fragment_basename = std::string("Seg1-Frag") + boost::lexical_cast<std::string>(fragment);
-            if ( produce_template ) {
-                fragment_basename += ".template";
+    if ( !manifest_only ) {
+    if ( produce_template ) {
+        std::filebuf out;
+        std::string indexname = (manifest_name.parent_path() / "index").string();
+        if ( out.open(indexname.c_str(), std::ios::out | std::ios::binary | std::ios::trunc) ) {
+            serialize(&out, fileinfo_list);
+            if ( !out.close() ) {
+                throw std::runtime_error("Error closing " + indexname);
             }
-            bfs::path fragment_file = mediadir / fragment_basename;
-            if ( out.open(fragment_file.string().c_str(), std::ios::out | std::ios::binary | std::ios::trunc) ) {
-                if ( produce_template ) {
-                    serialize_fragment_to_template(&out, pmedia, fragment - 1);
+        }
+        else {
+                throw std::runtime_error("Error opening " + indexname);
+        }
+#if TESTING
+        Mapping index(indexname.c_str());
+        for ( unsigned ix = 0; ix < fileinfo_list.size(); ++ix ) {
+            boost::shared_ptr<Media>& pmedia = fileinfo_list[ix];        
+            bfs::path mediadir = manifest_name.parent_path() / lexical_cast<std::string>(ix);
+            if ( mkdir(mediadir.string().c_str(), 0755) == -1 && errno != EEXIST ) {
+                throw system_error(errno, get_system_category(), "mkdir " + mediadir.string());
+            }
+            for ( unsigned fragment = 1; fragment <= pmedia->fragments.size(); ++fragment ) {
+                std::filebuf out;
+                std::string fragment_basename = std::string("Seg1-Frag") + boost::lexical_cast<std::string>(fragment);
+                bfs::path fragment_file = mediadir / fragment_basename;
+                if ( out.open(fragment_file.string().c_str(), std::ios::out | std::ios::binary | std::ios::trunc) ) {
+                    get_fragment(&out, ix, fragment - 1, index.data(), index.size(), create_mapping);
+                    if ( !out.close() ) {
+                        throw std::runtime_error("Error closing " + fragment_file.string());
+                    }
                 }
                 else {
-                    serialize_fragment(&out, pmedia, fragment - 1);
+                    throw std::runtime_error("Error opening " + fragment_file.string());
                 }
-                if ( !out.close() ) {
-                    throw std::runtime_error("Error closing " + fragment_file.string());
-                }
-            }
-            else {
-                throw std::runtime_error("Error opening " + fragment_file.string());
             }
         }
+#endif
+    }
+    else { 
+        for ( unsigned ix = 0; ix < fileinfo_list.size(); ++ix ) {
+            boost::shared_ptr<Media>& pmedia = fileinfo_list[ix];        
+            bfs::path mediadir = manifest_name.parent_path() / lexical_cast<std::string>(ix);
+            if ( mkdir(mediadir.string().c_str(), 0755) == -1 && errno != EEXIST ) {
+                throw system_error(errno, get_system_category(), "mkdir " + mediadir.string());
+            }
+            for ( unsigned fragment = 1; fragment <= pmedia->fragments.size(); ++fragment ) {
+                std::filebuf out;
+                std::string fragment_basename = std::string("Seg1-Frag") + boost::lexical_cast<std::string>(fragment);
+                bfs::path fragment_file = mediadir / fragment_basename;
+                if ( out.open(fragment_file.string().c_str(), std::ios::out | std::ios::binary | std::ios::trunc) ) {
+                    serialize_fragment(&out, pmedia, fragment - 1);
+                    if ( !out.close() ) {
+                        throw std::runtime_error("Error closing " + fragment_file.string());
+                    }
+                }
+                else {
+                    throw std::runtime_error("Error opening " + fragment_file.string());
+                }
+            }
+        }
+    }
     }
 
     std::filebuf manifest_filebuf;

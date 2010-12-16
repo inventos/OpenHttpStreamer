@@ -16,7 +16,7 @@ def save_config(filename, config):
     fd = open(filename, "w")
     pickle.dump(config, fd)
     fd.close()
-    
+
 def load_config(filename):
 	fd = open(filename, "r")
 	config = pickle.load(fd)
