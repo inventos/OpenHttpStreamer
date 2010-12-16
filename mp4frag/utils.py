@@ -19,7 +19,10 @@ def suffix_check(libpath, boost_names):
             if not boost_name_fnd in boost_names:
                 continue
             
-            found_suffix = "" if not boost_fnd.group(2) else boost_fnd.group(2) 
+            if not boost_fnd.group(2):
+                found_suffix = ""
+            else:
+                found_suffix =  boost_fnd.group(2) 
             if not boost_suffixes.has_key(boost_name_fnd) or len(found_suffix) < len(boost_suffixes[boost_name_fnd]):
                 boost_suffixes[boost_name_fnd] = str(found_suffix)
      
