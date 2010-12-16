@@ -37,9 +37,9 @@ TARGETS = {
         ),
 }
 
-FRAG_BOOST_LIBS_USED = ['program_options', "system"]
+FRAG_BOOST_LIBS_USED = ['program_options', "system", "filesystem"]
 UTIL_BOOST_LIBS_USED = ['date_time', "thread"]
-SRC_LIST = [ 'mp4frag_main.cc', 'mp4frag.cc', 'mp4.cc', 'base64.cc' ]
+SRC_LIST = [ 'mp4frag_main.cc', 'mp4frag.cc', 'mp4.cc', 'base64.cc', 'serialize.cc', 'mapping.cc' ]
 
 if ARGUMENTS.has_key("build"):
 	if ARGUMENTS["build"] == 'all':
