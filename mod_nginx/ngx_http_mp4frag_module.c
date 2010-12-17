@@ -135,8 +135,9 @@ static ngx_int_t make_mapping(const char *filename, ngx_str_t *pmap, ngx_http_re
 
     fd = open(filename, O_RDONLY);
     if ( fd == -1 ) {
+        int e = errno;
         ngx_log_error(NGX_LOG_ERR, r->connection->log, errno, "opening %s", filename);
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+        return ( e == ENOENT || e == ENOTDIR ) ? NGX_HTTP_NOT_FOUND : NGX_HTTP_INTERNAL_SERVER_ERROR;
     }
     if ( fstat(fd, &st) == -1 ) {
         close(fd);
@@ -194,13 +195,10 @@ static ngx_int_t ngx_http_mp4frag_handler(ngx_http_request_t *r)
         return rc;
     }
  
-#if 0
-    /* set the 'Content-type' header */
-    r->headers_out.content_type.len = sizeof("text/html") - 1;
-    r->headers_out.content_type.data = (u_char *) "text/html";
-#endif
- 
     last = ngx_http_map_uri_to_path(r, &path, &root, 0);
+
+    ngx_log_error(NGX_LOG_DEBUG, r->connection->log, 0, "path=%s", path.data);
+
     lastslash = strrchr((char*)path.data, '/');
     if ( lastslash ) {
         path.len = lastslash - (char*)path.data;
@@ -221,6 +219,7 @@ static ngx_int_t ngx_http_mp4frag_handler(ngx_http_request_t *r)
     medianum = atoi(lastslash + 1);
 
     memcpy(lastslash + 1, "index", 6);
+    ngx_log_error(NGX_LOG_DEBUG, r->connection->log, 0, "index_path=%s", path.data);
     
     if ( (rc = make_mapping((const char *)path.data, &index_map, r)) != NGX_OK ) {
         return rc;
