@@ -1,34 +1,43 @@
 nginx mp4frag module is used for http streaming
 
 BUILD.
-Get module here. github.com/inventos/OpenHttpStreamer
-Get nginx here: http://nginx.org/download/ and unpack it.
-In nginx directory run 
-./configure --add-module=<path to module>
-Of course you can add some other options on your need.
-After that in nginx source directory run
-make
-sudo make install
-This will build nginx with module and install it. Complete parameters guide search in nginx documentation.
+    Get module here. github.com/inventos/OpenHttpStreamer
+    Get nginx here: http://nginx.org/download/ and unpack it.
+    In nginx directory run 
+    
+	./configure --add-module=<path to module>
+	
+    Of course you can add some other options on your need.
+    After that in nginx source directory run
+    
+	make
+	sudo make install
+	
+    This will build nginx only with mp4frag module and install it. Complete parameters guide search in nginx documentation.
 
 CHECK.
-You need some non-fragmented mp4-file (or files with single source but different bitrate) to check work of module. 
-You can use mp4frag to build source data structures.
-Use:
-mp4frag --src <mp4file> (--src <mp4file-other-bitrate> ...) --template.
-This will generate two files - manifest.f4m and index. After that moving the source mp4-s is forbiden without 
+    You need some non-fragmented mp4-file (or files with single source but different bitrate) to check work of module. 
+    You can use mp4frag to build source data structures.
+    Use:
+    
+	mp4frag --src <mp4file> (--src <mp4file-other-bitrate> ...) --template.
+	
+    This will generate two files - manifest.f4m and index. After that moving the source mp4-s is forbiden without 
 rebuilding the index. 
-Setup your nginx server. Parameters which should be present in config file are written in
+
+    Setup your nginx server. Parameters which should be present in config file are written in
 mp4frag.conf, and exact values of parameters are depending on your wishable config. Only the "location" parameter
-should be set as shown. Start nginx with new parameters. 
-For testing purposes  let's create in nginx docroot directory directory test_ohs. Put manifest.f4m and index files, 
+should be set as shown. Start nginx with new parameters.
+    For testing purposes  let's create in nginx docroot directory directory test_ohs. Put manifest.f4m and index files, 
 generated on previous step to this dir and be shure the user by which nginx is run can read the directory, where mp4
 files are located. The setup completed.
-Try to check make some http requests, for example
-wget -O /dev/null "http://your-server-address/path/<qual_num>/Seg1-Frag<fragment-num>"
-where 
-<qual_num> - quality level, starting from 0. The total amountr of quality levels is determined as amount of sources.
-<fragment-num> - number of fragment you request, starting from 0. Roughly the number of fragments is length of movie in 
+    Try to check make some http requests, for example
+    
+	wget -O /dev/null "http://your-server-address/path/<qual_num>/Seg1-Frag<fragment-num>"
+	
+    where 
+    <qual_num> - quality level, starting from 0. The total amount of quality levels is determined as amount of sources.
+    <fragment-num> - number of fragment you request, starting from 0. Roughly the number of fragments is length of movie in 
 seconds divided by 4.
-The successfull request should return 200 result. If so you may continue reading article located 
+    The successfull request should return 200 result. If so you may continue reading article located 
 http://inventos.ru/OpenHttpStreamer and finish building your mulitmedia system.
