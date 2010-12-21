@@ -53,7 +53,7 @@ void parse_options(int argc, char **argv) {
       ("video_id", po::value<std::string>(&video_id)->default_value("some_video"), "video id for manifest file")
       ("manifest", po::value<bfs::path>(&manifest_name)->default_value("manifest.f4m"), "manifest file name")
       ("fragmentduration", po::value<int>(&fragment_duration)->default_value(3000), "single fragment duration, ms")
-      ("template", "make template files instead of full fragments")
+      ("index", "make index files instead of full fragments")
       ("nofragments", "make manifest only")
     ;
 
