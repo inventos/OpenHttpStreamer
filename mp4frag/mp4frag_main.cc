@@ -66,7 +66,7 @@ void parse_options(int argc, char **argv) {
         exit(1);
     }
 
-    produce_template = vm.count("template") != 0;
+    produce_template = vm.count("index") != 0;
     manifest_only = vm.count("nofragments") != 0;
     
 }
