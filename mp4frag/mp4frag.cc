@@ -334,8 +334,11 @@ void get_fragment(std::streambuf *out,
                   unsigned medianum, unsigned fragnum, const char *index, size_t indexsize,
                   const boost::function<boost::shared_ptr<Mapping> (const std::string&)>& mapping_factory
                   ) {
-    if ( memcmp(index, "mp4frag", 7) != 0 || index[7] != 1 ) {
+    if ( memcmp(index, "mp4frag", 7) != 0 ) {
         throw std::runtime_error("Wrong file format");
+    }
+    if ( index[7] > 2 ) {
+        throw std::runtime_error("Wrong index version");
     }
     uint16_t nmedia = read16(index + 8);
     if (medianum >= nmedia ) {
