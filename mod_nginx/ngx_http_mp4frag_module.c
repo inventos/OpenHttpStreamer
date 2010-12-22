@@ -25,7 +25,8 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <memory.h>
- 
+
+#define VERSION "0.1"
  
 static char *ngx_http_mp4frag(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
@@ -183,17 +184,23 @@ static ngx_int_t ngx_http_mp4frag_handler(ngx_http_request_t *r)
     uint16_t nsamples, nfragments;
     uint32_t totalsize;
     unsigned int iii;
+    ngx_table_elt_t *self;
 
     if (!(r->method & (NGX_HTTP_GET|NGX_HTTP_HEAD))) {
         return NGX_HTTP_NOT_ALLOWED;
     }
  
-    /* discard request body, since we don't need it here */
-    rc = ngx_http_discard_request_body(r);
- 
-    if (rc != NGX_OK) {
+    if ( (rc = ngx_http_discard_request_body(r)) != NGX_OK ) {
         return rc;
     }
+
+    if ( (self = ngx_list_push(&r->headers_out.headers)) == NULL ) {
+        ngx_log_error(NGX_LOG_DEBUG, r->connection->log, 0, "Insufficient memory for ngx_list_push");
+        return NGX_ERROR;
+    }
+    self->hash = 1;
+    ngx_str_set(&self->key, "X-Mp4frag-Version");
+    ngx_str_set(&self->value, VERSION);
  
     last = ngx_http_map_uri_to_path(r, &path, &root, 0);
 
