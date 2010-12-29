@@ -292,7 +292,7 @@ static ngx_int_t ngx_http_mp4frag_handler(ngx_http_request_t *r)
         }
         break;
     default:
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "Bad index format in %s", path.data);
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "Bad index version %d in %s", format_version, path.data);
         goto GENERAL_ERROR;
     }
 
