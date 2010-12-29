@@ -283,12 +283,12 @@ static ngx_int_t ngx_http_mp4frag_handler(ngx_http_request_t *r)
             mediafilename = (char*)indexptr;
         }
         else {
-            if ( (mediafilename = (char *)ngx_pcalloc(r->pool, (lastslash - (char*)path.data) + mediafilenamelen + 1)) == NULL ) {
+            if ( (mediafilename = (char *)ngx_pcalloc(r->pool, (lastslash - (char*)path.data) + mediafilenamelen + 2)) == NULL ) {
                 ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "Insufficient memory");
                 goto GENERAL_ERROR;
             }
             memcpy(mediafilename, path.data, lastslash - (char*)path.data);
-            memcpy(mediafilename + (lastslash - (char*)path.data), indexptr, mediafilenamelen);
+            memcpy(mediafilename + (lastslash - (char*)path.data) + 1, indexptr, mediafilenamelen);
         }
         break;
     default:
