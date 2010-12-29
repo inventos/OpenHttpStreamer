@@ -87,7 +87,7 @@ int main(int argc, char **argv) try {
     BOOST_FOREACH(bfs::path& srcfile, srcfiles) {
         boost::shared_ptr<Media> pmedia = make_fragments(srcfile.string(), fragment_duration);
         fileinfo_list.push_back(pmedia);
-        pmedia->medianame = bfs::complete(srcfile).string();
+        pmedia->medianame = srcfile.string();
     }
     gettimeofday(&now, 0);
     double diff = now.tv_sec - then.tv_sec + 1e-6*(now.tv_usec - then.tv_usec);

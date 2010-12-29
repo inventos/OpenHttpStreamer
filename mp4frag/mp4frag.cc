@@ -283,7 +283,7 @@ void serialize(std::streambuf *sbuf, const std::vector< boost::shared_ptr<Media>
     }
 
     sbuf->sputn(signature, strlen(signature));
-    sbuf->sputc(2); // version
+    sbuf->sputc(3); // version
     write16(*sbuf, nmedia);
     for ( unsigned n = 0; n < nmedia; ++n ) {
         write32(*sbuf, fragmentdir_map[n]);

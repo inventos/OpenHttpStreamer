@@ -26,7 +26,7 @@
 #include <fcntl.h>
 #include <memory.h>
 
-#define VERSION "0.1"
+#define VERSION "0.2"
  
 static char *ngx_http_mp4frag(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
@@ -185,6 +185,8 @@ static ngx_int_t ngx_http_mp4frag_handler(ngx_http_request_t *r)
     uint32_t totalsize;
     unsigned int iii;
     ngx_table_elt_t *self;
+    unsigned format_version;
+    
 
     if (!(r->method & (NGX_HTTP_GET|NGX_HTTP_HEAD))) {
         return NGX_HTTP_NOT_ALLOWED;
@@ -236,7 +238,7 @@ static ngx_int_t ngx_http_mp4frag_handler(ngx_http_request_t *r)
 #define CHECKMAP(nbytes) do { if (indexptr + nbytes >= index_map.data + index_map.len) { ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "index underrun, offset 0x%0x", nbytes); goto GENERAL_ERROR;}  } while(0)
 
     CHECKMAP(10); /* 8 for signature and 2 for media count */
-    if ( memcmp(index_map.data, "mp4frag", 7) != 0 || index_map.data[7] /* version */ > 2 ) {
+    if ( memcmp(index_map.data, "mp4frag", 7) != 0 || (format_version = (unsigned)(index_map.data[7]) & 0xff) /* version */ > 3 ) {
         free_mapping(&index_map);
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "Bad index format in %s", path.data);
         goto GENERAL_ERROR;
@@ -264,16 +266,34 @@ static ngx_int_t ngx_http_mp4frag_handler(ngx_http_request_t *r)
     mediafilenamelen = get16(indexptr);
     indexptr += 2;
     CHECKMAP(mediafilenamelen);
-    if ( index_map.data[7] == 1 ) {
+    switch ( format_version ) {
+    case 1:
         if ( (mediafilename = ngx_pcalloc(r->pool, mediafilenamelen + 1)) == NULL ) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "Insufficient memory");
             goto GENERAL_ERROR;
         }
         memcpy(mediafilename, (const char *)indexptr, mediafilenamelen);
         mediafilename[mediafilenamelen] = 0;
-    }
-    else /* index_map.data[7] == 2 */ {
+        break;
+    case 2:
         mediafilename = (char *)indexptr;
+        break;
+    case 3:
+        if ( indexptr[0] == '/' ) { /* absolute path */
+            mediafilename = (char*)indexptr;
+        }
+        else {
+            if ( (mediafilename = (char *)ngx_pcalloc(r->pool, (lastslash - (char*)path.data) + mediafilenamelen + 1)) == NULL ) {
+                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "Insufficient memory");
+                goto GENERAL_ERROR;
+            }
+            memcpy(mediafilename, path.data, lastslash - (char*)path.data);
+            memcpy(mediafilename + (lastslash - (char*)path.data), indexptr, mediafilenamelen);
+        }
+        break;
+    default:
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "Bad index format in %s", path.data);
+        goto GENERAL_ERROR;
     }
 
     indexptr += mediafilenamelen;
