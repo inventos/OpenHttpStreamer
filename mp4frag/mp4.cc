@@ -441,11 +441,26 @@ namespace mp4 {
         _ctx->pop_state();
     }
 
+    namespace {
+        unsigned get_size(const char *&ptr) {
+            unsigned total = 0;
+            for ( int count = 0; count < 4; ++count ) {
+                unsigned byte = *ptr++ & 0xff; 
+                total <<= 7;
+                total |= byte & 0x7f;
+                if ( !(byte & 0x80) ) {
+                    break;
+                }
+            }
+            return total;
+        }
+    }
+
     void Stsd::parse(const char *data) {
+        const char *end = data + _total;
         // uint16_t data_reference_index = UINT16(data + 6);
         uint32_t entries = UINT32(data + 4);
         data += 8;
-        const char *end = data + _total;
         for ( uint32_t iii = 0; iii < entries; ++iii ) {
             uint32_t sampleentrysize = UINT32(data);
             // data, data+4 - size; data+4, data+8 - signature; 
@@ -472,7 +487,6 @@ namespace mp4 {
                 if ( data + 86 < end ) {
                     MP4_CHECK ( end - data >= 86 + 8 );
                     uint32_t cab_size = UINT32(data + 86);
-
                     std::vector<char> tmp(data + 94, data + 94 + cab_size - 8);
                     std::swap(_ctx->_video->_extradata, tmp);
 
@@ -481,18 +495,35 @@ namespace mp4 {
                 }
             }
             else if ( _ctx->_current_parsed == _ctx->_audio ) {
+                
+                MP4_CHECK( ( data[4] == 'm' && data[5] == 'p' && data[6] == '4' && data[7] == 'a') );
+
                 // parse audiosampleentry
-                uint32_t esds_size = UINT32(data + 36);
+                const char *esds_ptr = data + 36;
+                uint32_t esds_size = UINT32(esds_ptr);
+                MP4_CHECK(esds_ptr[4] == 'e' && esds_ptr[5] == 's' && esds_ptr[6] == 'd' && esds_ptr[7] == 's');
+                MP4_CHECK(esds_ptr + esds_size == end);
+                MP4_CHECK(esds_ptr[12] == 3);
+                esds_ptr += 13;
+                get_size(esds_ptr);
+                esds_ptr += 3;
+                MP4_CHECK(*esds_ptr == 4);
+                ++esds_ptr;
+                unsigned descr_length = get_size(esds_ptr);
+                MP4_CHECK(descr_length >= 15);
+                esds_ptr += 13;
+                MP4_CHECK(*esds_ptr == 5);
+                ++esds_ptr;
+                unsigned audioextra_size = get_size(esds_ptr);
+
 #if 0
                 std::cerr << "-- channelcount=" << UINT16(data + 24) << "\n"
                           << "-- samplesize=" << UINT16(data + 26) << "\n"
                           << "-- samplerate=" << (UINT32(data + 32) >> 16) << "\n"
                           << "esds: " << esds_size << ":" << std::string(data + 40, 4) << "\n";
 #endif
-                _ctx->_audio->_extradata.clear();
-                _ctx->_audio->_extradata.reserve(2);
-                _ctx->_audio->_extradata.push_back(data[36 + esds_size - 5]);
-                _ctx->_audio->_extradata.push_back(data[36 + esds_size - 4]);
+                std::vector<char> tmp(esds_ptr, esds_ptr + audioextra_size);
+                std::swap(_ctx->_audio->_extradata, tmp);
             }
             data += sampleentrysize;
         }
