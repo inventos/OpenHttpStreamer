@@ -209,8 +209,8 @@ void get_manifest(std::streambuf* sb, const std::vector< boost::shared_ptr<Media
     for ( unsigned imedia = 0; imedia < medialist.size(); ++imedia ) {
         const boost::shared_ptr<Media>& fi = medialist[imedia];
         manifest_out <<  
-          "<media streamId=\"" << video_id << "\" url=\"" << imedia << "/\" bootstrapinfoId=\"" << info << "\" "
-          "bitrate=\"" << int(fi->mapping->size() / fi->duration / 10000 * 8) * 10000 << "\" "
+          "<media streamId=\"" << video_id << "\" url=\"" << imedia << "/\" bootstrapInfoId=\"" << info << "\" "
+          "bitrate=\"" << int(fi->mapping->size() / fi->duration / 10000 * 8) * 10 << "\" "
           " />\n";
     }
     manifest_out << "</manifest>\n";
