@@ -26,7 +26,7 @@
 #include <fcntl.h>
 #include <memory.h>
 
-#define VERSION "0.2"
+#define VERSION "0.4"
  
 static char *ngx_http_mp4frag(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
@@ -167,10 +167,10 @@ static ngx_int_t ngx_http_mp4frag_handler(ngx_http_request_t *r)
     ngx_int_t    rc;
     ngx_chain_t  out;
     u_char *resp_body;
+    u_char *resp_body_end, *resp_body_start;
     ngx_buf_t   *resp;
     char *lastslash;
     char *mediafilename;
-    u_char *last;
     size_t root;
     ngx_str_t path;
     ngx_str_t index_map = ngx_null_string;
@@ -204,7 +204,7 @@ static ngx_int_t ngx_http_mp4frag_handler(ngx_http_request_t *r)
     ngx_str_set(&self->key, "X-Mp4frag-Version");
     ngx_str_set(&self->value, VERSION);
  
-    last = ngx_http_map_uri_to_path(r, &path, &root, 0);
+    ngx_http_map_uri_to_path(r, &path, &root, 0);
 
     ngx_log_error(NGX_LOG_DEBUG, r->connection->log, 0, "path=%s", path.data);
 
@@ -349,6 +349,12 @@ static ngx_int_t ngx_http_mp4frag_handler(ngx_http_request_t *r)
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "Insufficient memory");
         goto GENERAL_ERROR;
     }
+    resp_body_start = resp_body;
+    resp_body_end = resp_body + totalsize;
+#define CHECK_RESP_ROOM(ptr, size) \
+    if ( ptr + size > resp_body_end ) {\
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "response buffer overflow, offset 0x%0x, size %d", (ptr) - resp_body_start, size); \
+        goto GENERAL_ERROR; }
 
     if ( (resp = ngx_pcalloc(r->pool, sizeof(ngx_buf_t))) == NULL ) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "Insufficient memory");
@@ -365,6 +371,8 @@ static ngx_int_t ngx_http_mp4frag_handler(ngx_http_request_t *r)
  
     if ( make_mapping(mediafilename, &mediafile_map, r) != NGX_OK ) goto GENERAL_ERROR;
  
+    CHECK_RESP_ROOM(resp_body, 8 + videocodecdata.len + audiocodecdata.len);
+
     /* generate the fragment */
     write32(resp_body, totalsize);
     memcpy(resp_body + 4, "mdat", 4);
@@ -381,11 +389,19 @@ static ngx_int_t ngx_http_mp4frag_handler(ngx_http_request_t *r)
         uint32_t composition_offset = get24(indexptr + 12);
         uint8_t flags = indexptr[15];
         indexptr += 16;
+
+        if ( offset + size > mediafile_map.len ) {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "short source file %s, offset %d, size %d, maplen %d", mediafilename, offset, size, mediafile_map.len); 
+            goto GENERAL_ERROR;
+        }
+
         if ( flags ) {
+            CHECK_RESP_ROOM(resp_body, size + 20);
             resp_body = write_video_packet(resp_body, flags & 2, 0, composition_offset, timestamp,
                                      mediafile_map.data + offset, size);
         }
         else {
+            CHECK_RESP_ROOM(resp_body, size + 17);
             resp_body = write_audio_packet(resp_body, 0, timestamp, mediafile_map.data + offset, size);
         }
     }
